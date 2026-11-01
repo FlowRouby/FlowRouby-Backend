@@ -76,3 +76,32 @@ GET /health
 
 Verifica que el servidor este activo y responde con el estado ok.
 
+
+3. ELEMENTOS BPMN SOPORTADOS Y UBICACION DE SU DICCIONARIO
+
+
+Eventos soportados:
+Soporta startEvent y endEvent, incluyendo formularios de inicio mediante atributos formRef, formKey y campos formField de Camunda.
+
+
+Tareas soportadas:
+Soporta userTask con definicion de campos formData y referencias formRef.
+Soporta serviceTask tanto con conectores HTTP http-connector como con clases delegadas camunda:class, ademas de las variantes genericas task, sendTask y receiveTask.
+Soporta scriptTask con extraccion del bloque de codigo script.
+Soporta manualTask para actividades manuales del proceso.
+Soporta businessRuleTask con atributos decisionRef y resultVariable en modo stub preparado para futura integracion con tablas DMN.
+Soporta callActivity para invocacion de subprocesos externos mediante calledElement y mapeo de variables de entrada y salida.
+
+
+Compuertas soportadas:
+Soporta exclusiveGateway con evaluacion de expresiones condicionales y flujo por defecto.
+Soporta parallelGateway para bifurcacion y sincronizacion de ramas concurrentes mediante vectores de flags en el automata.
+Soporta inclusiveGateway para activacion y sincronizacion de subconjuntos de ramas condicionales.
+
+
+Ubicacion del diccionario de elementos en el codigo:
+El catalogo de tipos de nodos y estructuras del modelo intermedio se encuentra definido en la enumeracion NodeType dentro de backend/app/features/processes/intermediate_model/models.py.
+El mapeo directo desde las etiquetas XML de BPMN y Camunda hacia estos nodos se ubica en el metodo _parse_flow_node dentro de backend/app/features/processes/bpmn_importer/importer.py.
+El diccionario de palabras reservadas y tokens equivalentes en el lenguaje intermedio FlowSpec se encuentra en el diccionario KEYWORDS dentro de backend/app/features/flowspec/lexer/lexer.py.
+
+
