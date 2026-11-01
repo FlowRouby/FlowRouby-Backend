@@ -1,0 +1,4 @@
+/.agents
+/process_models
+/SpiffWorkflow
+*.pyc
