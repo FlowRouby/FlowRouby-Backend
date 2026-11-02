@@ -24,7 +24,7 @@
 - [x] T2 Importer: `xml_loader.py`, `parser.py`, `validator.py`, facade `importer.py`, `process_service.py`; remove dead code and `lxml` — route: delegated
 - [x] T3 Compatibility: Camunda adapter + minimal emitter / nfa_builder / main.py adjustments — route: delegated
 - [x] T4 Tests: `tests/test_bpmn_import.py` (inline fixtures) and run the full suite — route: delegated
-- [ ] T5 Final report (files, scope, diagnostics, results, limitations, impact)
+- [x] T5 Final report (files, scope, diagnostics, results, limitations, impact) — delivered to the user; orchestrator re-ran pytest: 36 passed, 3 failed (missing `../process_models` fixtures)
 
 ## Acceptance criteria
 IDs/names preserved, edges and conditions preserved, unsupported elements reported, structural errors detected, no silent loss, importer independent of FlowSpec/Ruby/MongoDB/automata, tests runnable.
