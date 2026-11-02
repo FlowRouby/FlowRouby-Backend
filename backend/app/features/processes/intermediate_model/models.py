@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from .extensions import Extensions
+from .extensions import ExtensionElement, Extensions
 
 
 class NodeType(str, Enum):
@@ -62,6 +62,9 @@ class FlowNode:
     documentation: Optional[str] = None
     default_flow_id: Optional[str] = None  # BPMN "default" attribute (activities and gateways)
     extensions: Extensions = field(default_factory=Extensions)
+    # BPMN child elements FlowRouby does not interpret (event definitions, loop characteristics,
+    # io specifications, ...), kept as a generic tree so nothing is dropped.
+    unrecognized: List[ExtensionElement] = field(default_factory=list)
     incoming_flows: List[str] = field(default_factory=list)  # derived from sequence flows
     outgoing_flows: List[str] = field(default_factory=list)  # derived from sequence flows
 
@@ -77,6 +80,7 @@ class FlowNode:
             "incoming_flows": list(self.incoming_flows),
             "outgoing_flows": list(self.outgoing_flows),
             "extensions": self.extensions.to_dict(),
+            "unrecognized": [e.to_dict() for e in self.unrecognized],
         }
 
 
@@ -116,6 +120,24 @@ class CallActivityNode(FlowNode):
     def to_dict(self) -> Dict[str, Any]:
         base = super().to_dict()
         base["called_element"] = self.called_element
+        return base
+
+
+@dataclass(kw_only=True)
+class UnsupportedNode(FlowNode):
+    """A flow node FlowRouby cannot interpret (intermediate events, sub-processes, ...).
+
+    It stays in the graph, with its sequence flows, so the structure is not silently altered.
+    ``source`` holds the complete original element (attributes and children) as a generic tree.
+    """
+
+    node_type: NodeType = NodeType.UNSUPPORTED
+    support: SupportLevel = SupportLevel.UNSUPPORTED
+    source: Optional[ExtensionElement] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        base = super().to_dict()
+        base["source"] = self.source.to_dict() if self.source else None
         return base
 
 
@@ -162,6 +184,7 @@ class SequenceFlowEdge:
     is_default: bool = False  # derived: the source node's "default" attribute points to this flow
     documentation: Optional[str] = None
     extensions: Extensions = field(default_factory=Extensions)
+    unrecognized: List[ExtensionElement] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -173,6 +196,7 @@ class SequenceFlowEdge:
             "is_default": self.is_default,
             "documentation": self.documentation,
             "extensions": self.extensions.to_dict(),
+            "unrecognized": [e.to_dict() for e in self.unrecognized],
         }
 
 
@@ -225,6 +249,7 @@ class ProcessGraph:
     edges: Dict[str, SequenceFlowEdge] = field(default_factory=dict)
     documentation: Optional[str] = None
     extensions: Extensions = field(default_factory=Extensions)
+    unrecognized: List[ExtensionElement] = field(default_factory=list)
 
     @property
     def participant_name(self) -> Optional[str]:
@@ -286,6 +311,7 @@ class ProcessGraph:
             "edges": {eid: edge.to_dict() for eid, edge in self.edges.items()},
             "documentation": self.documentation,
             "extensions": self.extensions.to_dict(),
+            "unrecognized": [e.to_dict() for e in self.unrecognized],
         }
 
 
@@ -297,7 +323,11 @@ class BpmnDocument:
     name: Optional[str] = None
     target_namespace: Optional[str] = None
     processes: List[ProcessGraph] = field(default_factory=list)
+    participants: List[Participant] = field(default_factory=list)
     extensions: Extensions = field(default_factory=Extensions)
+    # Root-level elements that are neither processes nor collaborations (messages, item
+    # definitions, ...). BPMNDI layout data is deliberately not imported.
+    unrecognized: List[ExtensionElement] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -305,5 +335,7 @@ class BpmnDocument:
             "name": self.name,
             "target_namespace": self.target_namespace,
             "processes": [p.to_dict() for p in self.processes],
+            "participants": [p.to_dict() for p in self.participants],
             "extensions": self.extensions.to_dict(),
+            "unrecognized": [e.to_dict() for e in self.unrecognized],
         }

@@ -18,6 +18,7 @@ from .models import (
     SequenceFlowEdge,
     StartEventNode,
     SupportLevel,
+    UnsupportedNode,
 )
 
 __all__ = [
@@ -43,4 +44,5 @@ __all__ = [
     "Severity",
     "StartEventNode",
     "SupportLevel",
+    "UnsupportedNode",
 ]

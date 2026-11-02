@@ -21,7 +21,7 @@
 
 ## Tasks
 - [x] T1 IR models: `models.py`, `extensions.py`, `diagnostics.py` (neutral, dataclasses) — route: delegated
-- [ ] T2 Importer: `xml_loader.py`, `parser.py`, `validator.py`, facade `importer.py`, `process_service.py`; remove dead code and `lxml` — route: delegated
+- [x] T2 Importer: `xml_loader.py`, `parser.py`, `validator.py`, facade `importer.py`, `process_service.py`; remove dead code and `lxml` — route: delegated
 - [ ] T3 Compatibility: Camunda adapter + minimal emitter / nfa_builder / main.py adjustments — route: delegated
 - [ ] T4 Tests: `tests/test_bpmn_import.py` (inline fixtures) and run the full suite — route: delegated
 - [ ] T5 Final report (files, scope, diagnostics, results, limitations, impact)
@@ -32,6 +32,7 @@ IDs/names preserved, edges and conditions preserved, unsupported elements report
 ## Progress / evidence
 (commits and check results are recorded here per task)
 - T1 (route: delegated): neutral IR (`models.py`, `extensions.py`, `diagnostics.py`). Check: package imports and smoke-constructs OK. Importer and consumers still use the old API until T2/T3, so the tree is intentionally not runnable between T1 and T3.
+- T2 (route: delegated): `xml_loader.py` (defusedxml), `parser.py`, `validator.py`, `importer.py` facade, `process_service.py`; `lxml` replaced by `defusedxml`; vendor classes, XSD validator and unused namespace constants removed. Check: smoke import of an inline document (namespace-by-URI, extensions kept, unsupported node reported, NOT_BPMN/XML_MALFORMED errors). Consumers (emitter, main.py) are migrated in T3; full tests run in T4.
 
 ## Next step
-T2
+T3

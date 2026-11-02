@@ -26,6 +26,7 @@ class Severity(str, Enum):
 
 class DiagnosticCode(str, Enum):
     # Errors: no consistent IR can be built
+    INVALID_UPLOAD = "INVALID_UPLOAD"  # request rule: one .bpmn/.xml file per request
     XML_MALFORMED = "XML_MALFORMED"
     NOT_BPMN = "NOT_BPMN"
     NO_PROCESS = "NO_PROCESS"
