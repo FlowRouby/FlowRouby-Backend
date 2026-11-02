@@ -1,0 +1,80 @@
+# BPMN import and Intermediate Model (IR)
+
+```
+XML text -> xml_loader (defusedxml) -> parser (IR) -> validator (diagnostics) -> ImportResult
+```
+
+* `bpmn_importer/` - `BpmnImporter.import_xml(...)` / `import_file(...)` return an `ImportResult`.
+  The importer knows nothing about HTTP, FlowSpec, Ruby, automata or persistence.
+* `intermediate_model/` - vendor-neutral IR (`ProcessGraph`, nodes, `SequenceFlowEdge`, `Lane`,
+  `Extensions`) and the `Diagnostic` / `ImportResult` types.
+* `services/` - `ProcessImportService` applies the upload rules (one `.bpmn`/`.xml` file) and
+  delegates to the importer.
+
+## IR in short
+
+* BPMN ids and names are never rewritten (`name` is `None` when the XML has none).
+* Every node keeps its original tag in `bpmn_type`, plus a normalized `node_type` and a
+  `support` level (`analyzable`, `preserved`, `unsupported`).
+* Sequence flows keep `source_ref`, `target_ref`, the raw `Condition` (text, `language`,
+  `xsi:type`) and `is_default` (derived from the source node's `default` attribute).
+* Lanes and lane sets (including `childLaneSet`), participants, documentation, script task
+  `scriptFormat`/`script` and call activity `calledElement` are standard BPMN and live in the IR.
+* Vendor data lives in `extensions` of each element: foreign-namespace attributes and the
+  children of `<extensionElements>`, as a generic tree identified by **namespace URI**
+  (never by XML prefix).
+* BPMN children the importer does not interpret (event definitions, loop characteristics,
+  text annotations, ...) are kept in `unrecognized` as the same generic tree.
+* Unsupported flow nodes become `UnsupportedNode` (with the full original element in `source`)
+  so sequence flows stay consistent.
+* BPMNDI layout data is not imported; keep the original XML to preserve it.
+
+## Supported subset
+
+| Level | Elements |
+| --- | --- |
+| Analyzable | `startEvent`, `endEvent`, `task`, `userTask`, `serviceTask`, `manualTask`, `scriptTask`, `sendTask`, `receiveTask`, `businessRuleTask`, `exclusiveGateway`, `parallelGateway`, `sequenceFlow` |
+| Preserved, limited analysis | `callActivity` (treated as one atomic step), `inclusiveGateway` (experimental) |
+| Unsupported (kept as opaque nodes) | `intermediateCatchEvent`, `intermediateThrowEvent`, `boundaryEvent`, `subProcess`, `adHocSubProcess`, `transaction`, `eventBasedGateway`, `complexGateway` |
+
+## Diagnostics
+
+A `Diagnostic` has `severity` (`error`/`warning`/`info`), `code`, `message`, `elementId`,
+`elementType`, `processId` and `blocksAnalysis`. All problems are collected, not just the first.
+When any error exists, `ImportResult.document` is `None`.
+
+| Code | Severity | Meaning |
+| --- | --- | --- |
+| `INVALID_UPLOAD` | error | Request rule: exactly one `.bpmn`/`.xml` file |
+| `XML_MALFORMED` | error | Not well-formed XML, or it declares a DTD/entities |
+| `NOT_BPMN` | error | Root is not `<definitions>` in the BPMN 2.0 model namespace |
+| `NO_PROCESS` | error | No `<process>` in the document |
+| `MISSING_ID`, `DUPLICATE_ID` | error | Required id absent, or an id used twice in the document |
+| `MISSING_REF_ATTRIBUTE` | error | `sequenceFlow` without `sourceRef`/`targetRef` |
+| `INVALID_REFERENCE` | error | Flow, lane, default flow or participant points to something that does not exist |
+| `NO_START_EVENT`, `NO_END_EVENT` | error | **FlowRouby profile rule** (not a general BPMN rule) |
+| `MULTIPLE_START_EVENTS` | warning, blocks analysis | **FlowRouby profile rule**: imported, analysis blocked until a formal representation exists. Several end events are allowed |
+| `MULTIPLE_PROCESSES` | warning, blocks analysis | All processes are imported; analysis works on one |
+| `UNSUPPORTED_ELEMENT` | warning | Element kept but not interpreted; blocks analysis when it changes behavior |
+| `PRESERVED_NOT_ANALYZABLE` | warning | Imported faithfully, analyzed with limits (see table above) |
+| `DISCONNECTED_NODE`, `GATEWAY_WITHOUT_OUTGOING`, `XOR_FLOW_WITHOUT_CONDITION_OR_DEFAULT` | warning | Structural hints; analysis still runs and reports the consequences |
+| `IGNORED_ELEMENT` | info | Preserved as unrecognized content (or, for BPMNDI, not imported) |
+
+## Camunda compatibility adapter (temporary)
+
+`flowspec/ast/camunda_extensions.py` interprets Camunda data from `extensions` so the FlowSpec
+emitter keeps working without the IR carrying proprietary fields. Namespace
+`http://camunda.org/schema/1.0/bpmn`:
+
+* attributes: `formRef`/`formKey`, `class`, `decisionRef`, `resultVariable`
+* elements: `formData/formField` (id, type, label), `inputOutput` parameters, `connector`
+  (method, url, headers, payload, output parameters), `in` / `out` mappings
+
+Preserved in the IR but not read by the emitter: `formRefBinding`, form field defaults,
+`connectorId`, `mapDecisionResult`.
+
+Minimal emitter adjustments: it applies FlowSpec conventions the IR no longer carries
+(`task`/`sendTask`/`receiveTask` use the `service_task` keyword, `name`/`id` fallbacks, JUEL `${}`
+removal from conditions, and the implicit default branch of a gateway with a single
+unconditional flow). `main.py` stops the compile and simulate pipelines with HTTP 422 and the
+relevant diagnostics when the import has errors or analysis is blocked.

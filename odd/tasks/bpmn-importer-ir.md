@@ -22,7 +22,7 @@
 ## Tasks
 - [x] T1 IR models: `models.py`, `extensions.py`, `diagnostics.py` (neutral, dataclasses) — route: delegated
 - [x] T2 Importer: `xml_loader.py`, `parser.py`, `validator.py`, facade `importer.py`, `process_service.py`; remove dead code and `lxml` — route: delegated
-- [ ] T3 Compatibility: Camunda adapter + minimal emitter / nfa_builder / main.py adjustments — route: delegated
+- [x] T3 Compatibility: Camunda adapter + minimal emitter / nfa_builder / main.py adjustments — route: delegated
 - [ ] T4 Tests: `tests/test_bpmn_import.py` (inline fixtures) and run the full suite — route: delegated
 - [ ] T5 Final report (files, scope, diagnostics, results, limitations, impact)
 
@@ -33,6 +33,7 @@ IDs/names preserved, edges and conditions preserved, unsupported elements report
 (commits and check results are recorded here per task)
 - T1 (route: delegated): neutral IR (`models.py`, `extensions.py`, `diagnostics.py`). Check: package imports and smoke-constructs OK. Importer and consumers still use the old API until T2/T3, so the tree is intentionally not runnable between T1 and T3.
 - T2 (route: delegated): `xml_loader.py` (defusedxml), `parser.py`, `validator.py`, `importer.py` facade, `process_service.py`; `lxml` replaced by `defusedxml`; vendor classes, XSD validator and unused namespace constants removed. Check: smoke import of an inline document (namespace-by-URI, extensions kept, unsupported node reported, NOT_BPMN/XML_MALFORMED errors). Consumers (emitter, main.py) are migrated in T3; full tests run in T4.
+- T3 (route: delegated): `camunda_extensions.py` adapter, emitter and `main.py` migrated, `processes/README.md` added. Check: FlowSpec text emitted by the old (main) pipeline and the new pipeline is byte-identical on an inline Camunda sample (lanes, forms, connector, mappings, script, decision, gateway default heuristic, generic task); compile and simulate endpoints run on it. Full pytest run is part of T4.
 
 ## Next step
-T3
+T4
