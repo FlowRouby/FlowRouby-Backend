@@ -1,42 +1,37 @@
-"""Service layer for validating and importing single BPMN 2.0 files into Intermediate Models."""
+"""Service layer for importing BPMN uploads into the Intermediate Model."""
 
 from __future__ import annotations
 
-from typing import List, Optional
-from ..bpmn_importer.importer import BpmnImporter, BpmnImportValidationError
-from ..intermediate_model.models import ProcessGraph
+from typing import Optional
+
+from ..bpmn_importer.importer import BpmnImporter
+from ..intermediate_model.diagnostics import Diagnostic, DiagnosticCode, ImportResult, Severity
+
+ALLOWED_EXTENSIONS = (".bpmn", ".xml")
 
 
 class ProcessImportService:
-    """Coordinates single-file BPMN validation and conversion to ProcessGraph."""
+    """Applies the upload rules of a request, then delegates parsing to the importer."""
 
-    def __init__(self, validate_xsd: bool = True):
-        self.importer = BpmnImporter(validate_xsd=validate_xsd)
+    def __init__(self, importer: Optional[BpmnImporter] = None):
+        self.importer = importer or BpmnImporter()
 
     def import_single_bpmn(
         self,
         xml_content: str | bytes,
         filename: Optional[str] = None,
         file_count: int = 1,
-    ) -> ProcessGraph:
-        """Validates the single-BPMN-per-request rule and parses the document."""
+    ) -> ImportResult:
+        """Validates the one-file-per-request and extension rules, then imports the document."""
         if file_count != 1:
-            raise BpmnImportValidationError(
-                f"Only a single BPMN file is allowed per request (received {file_count})."
-            )
-        if filename and not filename.lower().endswith((".bpmn", ".xml")):
-            raise BpmnImportValidationError(
-                f"Invalid file extension for '{filename}'. Expected a .bpmn or .xml file."
-            )
+            return self._rejected(f"Only a single BPMN file is allowed per request (received {file_count}).")
+        if filename and not filename.lower().endswith(ALLOWED_EXTENSIONS):
+            return self._rejected(f"Invalid file extension for '{filename}'. Expected a .bpmn or .xml file.")
+        return self.importer.import_xml(xml_content)
 
-        graph = self.importer.parse_string(xml_content, filename=filename)
-        if not graph.start_nodes:
-            raise BpmnImportValidationError(
-                f"Process '{graph.process_id}' must contain at least one <bpmn:startEvent>."
-            )
-        if not graph.end_nodes:
-            raise BpmnImportValidationError(
-                f"Process '{graph.process_id}' must contain at least one <bpmn:endEvent>."
-            )
-        return graph
-
+    @staticmethod
+    def _rejected(message: str) -> ImportResult:
+        return ImportResult(
+            document=None,
+            diagnostics=[Diagnostic(Severity.ERROR, DiagnosticCode.INVALID_UPLOAD, message)],
+        )

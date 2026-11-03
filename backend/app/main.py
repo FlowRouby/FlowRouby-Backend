@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import inspect
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import starlette.routing
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
@@ -29,7 +29,8 @@ from .features.flowspec.parser.parser import FlowSpecParser, FlowSpecSyntaxError
 from .features.flowspec.semantic_analysis.analyzer import FlowSpecSemanticAnalyzer
 from .features.flowspec.semantic_analysis.simulator import FlowSpecSimulator
 from .features.formal_analysis.services.analysis_service import FormalAnalysisService
-from .features.processes.bpmn_importer.importer import BpmnImportValidationError
+from .features.processes.intermediate_model.diagnostics import Diagnostic
+from .features.processes.intermediate_model.models import ProcessGraph
 from .features.processes.services.process_service import ProcessImportService
 
 app = FastAPI(
@@ -60,6 +61,36 @@ class FlowSpecSimulateRequest(BaseModel):
     input_data: Dict[str, Any] = Field(default_factory=dict, description="Input payload for stateless simulation.")
 
 
+def _import_bpmn_or_422(
+    xml_bytes: bytes, filename: Optional[str], file_count: int
+) -> Tuple[ProcessGraph, List[Diagnostic]]:
+    """Imports an uploaded BPMN file, or raises HTTP 422 with the diagnostics that explain why not.
+
+    Import errors and analysis blockers are different situations, but both stop the compile and
+    simulate pipelines: running formal analysis on a process that was not fully understood would
+    analyze a different process than the one the user imported.
+    """
+    result = process_service.import_single_bpmn(xml_bytes, filename=filename, file_count=file_count)
+    if result.has_errors:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "message": "The BPMN document could not be imported.",
+                "diagnostics": [d.to_dict() for d in result.errors],
+            },
+        )
+    graph = result.process
+    if not result.analysis_supported or graph is None:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "message": "The BPMN document was imported but cannot be analyzed yet.",
+                "diagnostics": [d.to_dict() for d in result.analysis_blockers],
+            },
+        )
+    return graph, result.diagnostics
+
+
 @app.get("/health")
 def health_check() -> Dict[str, str]:
     return {"status": "ok", "service": "bpmn-to-ruby-compiler"}
@@ -71,18 +102,9 @@ def compile_bpmn_process(
 ) -> Dict[str, Any]:
     """Accepts a single .bpmn file, validates it, runs formal automata analysis,
     emits and compiles FlowSpec DSL, and returns the Ruby on Rails + Sidekiq templates."""
-    try:
-        if len(files) != 1:
-            raise BpmnImportValidationError(
-                f"Only a single BPMN file is allowed per request (received {len(files)})."
-            )
-        upload = files[0]
-        xml_bytes = upload.file.read()
-        graph = process_service.import_single_bpmn(
-            xml_bytes, filename=upload.filename, file_count=len(files)
-        )
-    except BpmnImportValidationError as exc:
-        raise HTTPException(status_code=422, detail=exc.to_dict()) from exc
+    upload = files[0]
+    xml_bytes = upload.file.read() if len(files) == 1 else b""
+    graph, diagnostics = _import_bpmn_or_422(xml_bytes, upload.filename, len(files))
 
     # 1. Formal Analysis (Chomsky Type 3: ε-NFA -> DFA -> Regular Expression + Deadlock/Loop Detection)
     formal_report = formal_service.analyze(graph)
@@ -115,16 +137,16 @@ def compile_bpmn_process(
     return {
         "metadata": {
             "process_id": graph.process_id,
-            "process_name": graph.name,
+            "process_name": graph.name or graph.process_id,
             "participant_name": graph.participant_name,
             "is_executable": graph.is_executable,
-            "lanes": [l.name for l in graph.lanes],
+            "lanes": [l.name or l.id for l in graph.lanes],
             "node_count": len(graph.nodes),
             "edge_count": len(graph.edges),
         },
         "validation": {
             "valid": formal_report.is_valid_workflow and semantic_result.valid,
-            "bpmn_warnings": graph.warnings,
+            "diagnostics": [d.to_dict() for d in diagnostics],
             "semantic_errors": semantic_result.errors,
             "semantic_warnings": semantic_result.warnings,
         },
@@ -203,11 +225,7 @@ def simulate_bpmn_process(
 
     dfa = None
     if file is not None:
-        try:
-            xml_bytes = file.file.read()
-            graph = process_service.import_single_bpmn(xml_bytes, filename=file.filename, file_count=1)
-        except BpmnImportValidationError as exc:
-            raise HTTPException(status_code=422, detail=exc.to_dict()) from exc
+        graph, _ = _import_bpmn_or_422(file.file.read(), file.filename, 1)
 
         formal_report = formal_service.analyze(graph)
         dfa = formal_report.dfa

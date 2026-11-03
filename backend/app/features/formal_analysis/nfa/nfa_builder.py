@@ -250,7 +250,7 @@ class NFABuilder:
                         "type": "GATEWAY_DEADLOCK",
                         "node_id": node.id,
                         "message": (
-                            f"Converging ParallelGateway '{node.name}' ({node.id}) is not paired with a matching "
+                            f"Converging ParallelGateway '{node.name or node.id}' ({node.id}) is not paired with a matching "
                             f"diverging ParallelGateway (possible XOR-split to AND-join synchronization deadlock)."
                         ),
                     }

@@ -21,10 +21,10 @@
 
 ## Tasks
 - [x] T1 IR models: `models.py`, `extensions.py`, `diagnostics.py` (neutral, dataclasses) — route: delegated
-- [ ] T2 Importer: `xml_loader.py`, `parser.py`, `validator.py`, facade `importer.py`, `process_service.py`; remove dead code and `lxml` — route: delegated
-- [ ] T3 Compatibility: Camunda adapter + minimal emitter / nfa_builder / main.py adjustments — route: delegated
-- [ ] T4 Tests: `tests/test_bpmn_import.py` (inline fixtures) and run the full suite — route: delegated
-- [ ] T5 Final report (files, scope, diagnostics, results, limitations, impact)
+- [x] T2 Importer: `xml_loader.py`, `parser.py`, `validator.py`, facade `importer.py`, `process_service.py`; remove dead code and `lxml` — route: delegated
+- [x] T3 Compatibility: Camunda adapter + minimal emitter / nfa_builder / main.py adjustments — route: delegated
+- [x] T4 Tests: `tests/test_bpmn_import.py` (inline fixtures) and run the full suite — route: delegated
+- [x] T5 Final report (files, scope, diagnostics, results, limitations, impact) — delivered to the user; orchestrator re-ran pytest: 36 passed, 3 failed (missing `../process_models` fixtures)
 
 ## Acceptance criteria
 IDs/names preserved, edges and conditions preserved, unsupported elements reported, structural errors detected, no silent loss, importer independent of FlowSpec/Ruby/MongoDB/automata, tests runnable.
@@ -32,6 +32,11 @@ IDs/names preserved, edges and conditions preserved, unsupported elements report
 ## Progress / evidence
 (commits and check results are recorded here per task)
 - T1 (route: delegated): neutral IR (`models.py`, `extensions.py`, `diagnostics.py`). Check: package imports and smoke-constructs OK. Importer and consumers still use the old API until T2/T3, so the tree is intentionally not runnable between T1 and T3.
+- T2 (route: delegated): `xml_loader.py` (defusedxml), `parser.py`, `validator.py`, `importer.py` facade, `process_service.py`; `lxml` replaced by `defusedxml`; vendor classes, XSD validator and unused namespace constants removed. Check: smoke import of an inline document (namespace-by-URI, extensions kept, unsupported node reported, NOT_BPMN/XML_MALFORMED errors). Consumers (emitter, main.py) are migrated in T3; full tests run in T4.
+- T3 (route: delegated): `camunda_extensions.py` adapter, emitter and `main.py` migrated, `processes/README.md` added. Check: FlowSpec text emitted by the old (main) pipeline and the new pipeline is byte-identical on an inline Camunda sample (lanes, forms, connector, mappings, script, decision, gateway default heuristic, generic task); compile and simulate endpoints run on it. Full pytest run is part of T4.
+- T4 (route: delegated): `tests/test_bpmn_import.py` (34 tests, inline fixtures) and existing pipeline tests migrated to the new API. Check: full `pytest -q` from `backend/` = 36 passed, 3 failed. The 3 failures are the pre-existing ones (`test_import_realizar_visita_tecnica_bpmn`, `test_import_and_formal_analysis_tec_failures_bpmn`, `test_fastapi_endpoints_compile_and_simulate`): they open `../process_models/*.bpmn`, which is git-ignored and absent from the repo (baseline on `main`: 3 failed, 2 passed).
+- Commits: T1 `0ba1938`, T2 `d4e4fc3`, T3 `a5b6bb2`, T4 `38ee924`.
+- T6 (route: delegated): verified on the venv Python 3.14.7 that `DefusedXMLParser(target=TreeBuilder(element_factory=...))` exposes `parser.parser.CurrentLineNumber` per start tag, so lines are recorded on a `SourceElement` subclass without weakening defusedxml (DTD/entities still rejected). `Diagnostic.line` plus `source_line` on IR elements; XML_MALFORMED uses the ParseError line (DTD rejection uses the declaration line). Wording of PRESERVED_NOT_ANALYZABLE and README updated (still non-blocking). `nfa_builder` GATEWAY_DEADLOCK message now uses `node.name or node.id`; no other IR `.name` message interpolation exists in formal_analysis (simulator/generator read the FlowSpec AST, whose names the emitter already defaults). Check: full `pytest -q` from `backend/` = 43 passed, 3 failed (the same 3 pre-existing `../process_models` failures).
 
 ## Next step
-T2
+T5 (final report by the orchestrator)

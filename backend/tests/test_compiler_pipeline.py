@@ -23,7 +23,8 @@ from app.features.flowspec.parser.parser import FlowSpecParser, FlowSpecSyntaxEr
 from app.features.flowspec.semantic_analysis.analyzer import FlowSpecSemanticAnalyzer
 from app.features.flowspec.semantic_analysis.simulator import FlowSpecSimulator
 from app.features.formal_analysis.services.analysis_service import FormalAnalysisService
-from app.features.processes.bpmn_importer.importer import BpmnImporter
+from app.features.flowspec.ast import camunda_extensions as camunda
+from app.features.processes.bpmn_importer import BpmnImporter
 from app.main import app, compile_bpmn_process, compile_flowspec_direct, simulate_bpmn_process
 
 PROCESS_MODELS_DIR = os.path.abspath(os.path.join(BACKEND_DIR, "..", "process_models"))
@@ -33,7 +34,7 @@ TEC_FAILURES_BPMN_PATH = os.path.join(PROCESS_MODELS_DIR, "tecFailures.bpmn")
 
 def test_import_realizar_visita_tecnica_bpmn() -> None:
     importer = BpmnImporter()
-    graph = importer.parse_file(VISITA_BPMN_PATH)
+    graph = importer.import_file(VISITA_BPMN_PATH).process
 
     assert graph.process_id == "realizarVisitaTecnica"
     assert graph.name == "Realizar Visita Técnica"
@@ -44,23 +45,25 @@ def test_import_realizar_visita_tecnica_bpmn() -> None:
     # Check UserTask with Camunda formData (visita: boolean)
     user_task = graph.nodes["Activity_1aczp5w"]
     assert user_task.node_type.value == "user_task"
-    assert len(user_task.form_fields) == 1
-    assert user_task.form_fields[0].id == "visita"
-    assert user_task.form_fields[0].field_type == "boolean"
+    user_form_fields = camunda.form_fields(user_task.extensions)
+    assert len(user_form_fields) == 1
+    assert user_form_fields[0].id == "visita"
+    assert user_form_fields[0].field_type == "boolean"
 
     # Check ServiceTask with HTTP Connector
     srv_task = graph.nodes["Activity_0lw92ym"]
     assert srv_task.node_type.value == "service_task"
-    assert srv_task.http_connector is not None
-    assert srv_task.http_connector.method == "POST"
-    assert srv_task.http_connector.url == "http://localhost:9095/tickets/actualizar"
-    assert "TicketIdVisita" in srv_task.http_connector.payload_variables
-    assert srv_task.http_connector.output_parameters.get("RespuestaFSM") == "response"
+    connector = camunda.http_connector(srv_task.extensions)
+    assert connector is not None
+    assert connector.method == "POST"
+    assert connector.url == "http://localhost:9095/tickets/actualizar"
+    assert "TicketIdVisita" in connector.payload_variables
+    assert connector.output_parameters.get("RespuestaFSM") == "response"
 
 
 def test_import_and_formal_analysis_tec_failures_bpmn() -> None:
     importer = BpmnImporter()
-    graph = importer.parse_file(TEC_FAILURES_BPMN_PATH)
+    graph = importer.import_file(TEC_FAILURES_BPMN_PATH).process
 
     assert graph.process_id == "tecFailures"
     assert len(graph.lanes) == 3
@@ -72,8 +75,8 @@ def test_import_and_formal_analysis_tec_failures_bpmn() -> None:
 
     brule_node = graph.nodes["Activity_1ll5x9g"]
     assert brule_node.node_type.value == "business_rule_task"
-    assert brule_node.decision_ref == "clasificarPresupuesto"
-    assert brule_node.result_variable == "valor"
+    assert camunda.decision_ref(brule_node.extensions) == "clasificarPresupuesto"
+    assert camunda.result_variable(brule_node.extensions) == "valor"
 
     # Run Formal Analysis (NFA with flag vectors -> DFA -> Regex)
     formal_service = FormalAnalysisService()
@@ -144,8 +147,7 @@ def test_formal_analysis_detects_xor_to_and_deadlock_and_unreachable() -> None:
       </bpmn:process>
     </bpmn:definitions>
     """
-    importer = BpmnImporter(validate_xsd=False)
-    graph = importer.parse_string(deadlock_xml)
+    graph = BpmnImporter().import_xml(deadlock_xml).process
     report = FormalAnalysisService().analyze(graph)
 
     assert report.is_valid_workflow is False
