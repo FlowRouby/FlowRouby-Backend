@@ -56,6 +56,7 @@ class Diagnostic:
     element_type: Optional[str] = None  # original BPMN local tag name
     process_id: Optional[str] = None
     blocks_analysis: bool = False
+    line: Optional[int] = None  # line of the element's start tag in the imported XML, when known
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -66,6 +67,7 @@ class Diagnostic:
             "elementType": self.element_type,
             "processId": self.process_id,
             "blocksAnalysis": self.blocks_analysis,
+            "line": self.line,
         }
 
 

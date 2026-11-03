@@ -67,6 +67,7 @@ class FlowNode:
     unrecognized: List[ExtensionElement] = field(default_factory=list)
     incoming_flows: List[str] = field(default_factory=list)  # derived from sequence flows
     outgoing_flows: List[str] = field(default_factory=list)  # derived from sequence flows
+    source_line: Optional[int] = None  # line of the start tag in the imported XML
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -81,6 +82,7 @@ class FlowNode:
             "outgoing_flows": list(self.outgoing_flows),
             "extensions": self.extensions.to_dict(),
             "unrecognized": [e.to_dict() for e in self.unrecognized],
+            "source_line": self.source_line,
         }
 
 
@@ -185,6 +187,7 @@ class SequenceFlowEdge:
     documentation: Optional[str] = None
     extensions: Extensions = field(default_factory=Extensions)
     unrecognized: List[ExtensionElement] = field(default_factory=list)
+    source_line: Optional[int] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -197,6 +200,7 @@ class SequenceFlowEdge:
             "documentation": self.documentation,
             "extensions": self.extensions.to_dict(),
             "unrecognized": [e.to_dict() for e in self.unrecognized],
+            "source_line": self.source_line,
         }
 
 
@@ -206,6 +210,7 @@ class Lane:
     name: Optional[str] = None
     flow_node_refs: List[str] = field(default_factory=list)
     child_lane_set: Optional["LaneSet"] = None
+    source_line: Optional[int] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -213,6 +218,7 @@ class Lane:
             "name": self.name,
             "flow_node_refs": list(self.flow_node_refs),
             "child_lane_set": self.child_lane_set.to_dict() if self.child_lane_set else None,
+            "source_line": self.source_line,
         }
 
 
@@ -231,9 +237,10 @@ class Participant:
     id: str
     name: Optional[str] = None
     process_ref: Optional[str] = None
+    source_line: Optional[int] = None
 
     def to_dict(self) -> Dict[str, Any]:
-        return {"id": self.id, "name": self.name, "process_ref": self.process_ref}
+        return {"id": self.id, "name": self.name, "process_ref": self.process_ref, "source_line": self.source_line}
 
 
 @dataclass
@@ -250,6 +257,7 @@ class ProcessGraph:
     documentation: Optional[str] = None
     extensions: Extensions = field(default_factory=Extensions)
     unrecognized: List[ExtensionElement] = field(default_factory=list)
+    source_line: Optional[int] = None
 
     @property
     def participant_name(self) -> Optional[str]:
@@ -312,6 +320,7 @@ class ProcessGraph:
             "documentation": self.documentation,
             "extensions": self.extensions.to_dict(),
             "unrecognized": [e.to_dict() for e in self.unrecognized],
+            "source_line": self.source_line,
         }
 
 
@@ -328,6 +337,7 @@ class BpmnDocument:
     # Root-level elements that are neither processes nor collaborations (messages, item
     # definitions, ...). BPMNDI layout data is deliberately not imported.
     unrecognized: List[ExtensionElement] = field(default_factory=list)
+    source_line: Optional[int] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -338,4 +348,5 @@ class BpmnDocument:
             "participants": [p.to_dict() for p in self.participants],
             "extensions": self.extensions.to_dict(),
             "unrecognized": [e.to_dict() for e in self.unrecognized],
+            "source_line": self.source_line,
         }

@@ -30,6 +30,7 @@ from ..intermediate_model.models import (
     SupportLevel,
     UnsupportedNode,
 )
+from .xml_loader import line_of
 
 BPMN_NS = "http://www.omg.org/spec/BPMN/20100524/MODEL"
 BPMNDI_NS = "http://www.omg.org/spec/BPMN/20100524/DI"
@@ -114,12 +115,15 @@ class _Collector:
         element_type: Optional[str] = None,
         process_id: Optional[str] = None,
         blocks_analysis: bool = False,
+        line: Optional[int] = None,
     ) -> None:
         self.diagnostics.append(
-            Diagnostic(severity, code, message, element_id, element_type, process_id, blocks_analysis)
+            Diagnostic(severity, code, message, element_id, element_type, process_id, blocks_analysis, line)
         )
 
-    def register_id(self, element_id: str, element_type: str, process_id: Optional[str]) -> bool:
+    def register_id(
+        self, element_id: str, element_type: str, process_id: Optional[str], line: Optional[int] = None
+    ) -> bool:
         """Records an id; reports DUPLICATE_ID and returns False when it was already used."""
         if element_id in self._seen_ids:
             self.add(
@@ -129,6 +133,7 @@ class _Collector:
                 element_id,
                 element_type,
                 process_id,
+                line=line,
             )
             return False
         self._seen_ids.add(element_id)
@@ -145,9 +150,10 @@ class _Collector:
                 None,
                 element_type,
                 process_id,
+                line=line_of(element),
             )
             return None
-        return element_id if self.register_id(element_id, element_type, process_id) else None
+        return element_id if self.register_id(element_id, element_type, process_id, line_of(element)) else None
 
     def keep_unrecognized(
         self, child: Element, parent_id: Optional[str], process_id: Optional[str], sink: List[ExtensionElement]
@@ -166,6 +172,7 @@ class _Collector:
                 local,
                 process_id,
                 blocks_analysis=True,
+                line=line_of(child),
             )
         elif local.endswith("EventDefinition"):
             self.add(
@@ -175,6 +182,7 @@ class _Collector:
                 element_id,
                 local,
                 process_id,
+                line=line_of(child),
             )
         else:
             self.add(
@@ -184,16 +192,19 @@ class _Collector:
                 child.get("id") or element_id,
                 local,
                 process_id,
+                line=line_of(child),
             )
 
-    def not_imported(self, local: str, element_id: Optional[str], process_id: Optional[str], reason: str) -> None:
+    def not_imported(self, child: Element, process_id: Optional[str], reason: str) -> None:
+        _, local = split_tag(child.tag)
         self.add(
             Severity.INFO,
             DiagnosticCode.IGNORED_ELEMENT,
             f"<{local}> is not imported: {reason}",
-            element_id,
+            child.get("id"),
             local,
             process_id,
+            line=line_of(child),
         )
 
 
@@ -223,6 +234,7 @@ def _parse_node(element: Element, local: str, ctx: _Collector, process_id: str) 
             local,
             process_id,
             blocks_analysis=True,
+            line=line_of(element),
         )
         return UnsupportedNode(
             id=node_id,
@@ -232,6 +244,7 @@ def _parse_node(element: Element, local: str, ctx: _Collector, process_id: str) 
             default_flow_id=element.get("default"),
             extensions=_read_extensions(element),
             source=to_generic(element),
+            source_line=line_of(element),
         )
 
     common = {
@@ -240,6 +253,7 @@ def _parse_node(element: Element, local: str, ctx: _Collector, process_id: str) 
         "documentation": _read_documentation(element),
         "default_flow_id": element.get("default"),
         "extensions": _read_extensions(element),
+        "source_line": line_of(element),
     }
     handled = set(_COMMON_NODE_CHILDREN)
     node: FlowNode
@@ -264,11 +278,13 @@ def _parse_node(element: Element, local: str, ctx: _Collector, process_id: str) 
         ctx.add(
             Severity.WARNING,
             DiagnosticCode.PRESERVED_NOT_ANALYZABLE,
-            "Call activities are preserved, but the called process is not followed; "
-            "formal analysis treats the activity as a single atomic step.",
+            "Call activity is imported and valid for code generation, but it is outside the initial "
+            "FlowRouby formal-analysis profile, so analysis results involving it are provisional "
+            "(the called process is not followed).",
             node_id,
             local,
             process_id,
+            line=line_of(element),
         )
     elif local in _GATEWAY_TYPES:
         node = GatewayNode(node_type=_GATEWAY_TYPES[local], bpmn_type=local, **common)
@@ -277,10 +293,12 @@ def _parse_node(element: Element, local: str, ctx: _Collector, process_id: str) 
             ctx.add(
                 Severity.WARNING,
                 DiagnosticCode.PRESERVED_NOT_ANALYZABLE,
-                "Inclusive gateways are preserved, but their analysis is experimental.",
+                "Inclusive gateway is imported and valid for code generation, but it is outside the initial "
+                "FlowRouby formal-analysis profile, so analysis results involving it are provisional.",
                 node_id,
                 local,
                 process_id,
+                line=line_of(element),
             )
     else:  # pragma: no cover - callers only pass tags handled above
         raise ValueError(f"Unexpected flow node tag '{local}'")
@@ -310,6 +328,7 @@ def _parse_sequence_flow(element: Element, ctx: _Collector, process_id: str) -> 
                 flow_id,
                 "sequenceFlow",
                 process_id,
+                line=line_of(element),
             )
     if not source_ref or not target_ref:
         return None
@@ -321,6 +340,7 @@ def _parse_sequence_flow(element: Element, ctx: _Collector, process_id: str) -> 
         name=element.get("name"),
         documentation=_read_documentation(element),
         extensions=_read_extensions(element),
+        source_line=line_of(element),
     )
     handled = {"documentation", "extensionElements", "conditionExpression"}
     condition = element.find(_bpmn("conditionExpression"))
@@ -341,7 +361,7 @@ def _parse_sequence_flow(element: Element, ctx: _Collector, process_id: str) -> 
 def _parse_lane_set(element: Element, ctx: _Collector, process_id: str) -> LaneSet:
     lane_set = LaneSet(id=element.get("id"), name=element.get("name"))
     if lane_set.id:
-        ctx.register_id(lane_set.id, "laneSet", process_id)
+        ctx.register_id(lane_set.id, "laneSet", process_id, line_of(element))
     for child in element:
         child_ns, child_local = split_tag(child.tag)
         if child_ns == BPMN_NS and child_local == "lane":
@@ -349,7 +369,7 @@ def _parse_lane_set(element: Element, ctx: _Collector, process_id: str) -> LaneS
             if lane is not None:
                 lane_set.lanes.append(lane)
         else:
-            ctx.not_imported(child_local, child.get("id"), process_id, "only lanes are read from a laneSet.")
+            ctx.not_imported(child, process_id, "only lanes are read from a laneSet.")
     return lane_set
 
 
@@ -357,7 +377,7 @@ def _parse_lane(element: Element, ctx: _Collector, process_id: str) -> Optional[
     lane_id = ctx.require_id(element, "lane", process_id)
     if lane_id is None:
         return None
-    lane = Lane(id=lane_id, name=element.get("name"))
+    lane = Lane(id=lane_id, name=element.get("name"), source_line=line_of(element))
     for child in element:
         child_ns, child_local = split_tag(child.tag)
         if child_ns == BPMN_NS and child_local == "flowNodeRef":
@@ -366,7 +386,7 @@ def _parse_lane(element: Element, ctx: _Collector, process_id: str) -> Optional[
         elif child_ns == BPMN_NS and child_local == "childLaneSet":
             lane.child_lane_set = _parse_lane_set(child, ctx, process_id)
         else:
-            ctx.not_imported(child_local, child.get("id"), process_id, "only lane membership is read.")
+            ctx.not_imported(child, process_id, "only lane membership is read.")
     return lane
 
 
@@ -395,6 +415,7 @@ def _parse_process(element: Element, ctx: _Collector) -> Optional[ProcessGraph]:
         is_executable=None if is_executable_attr is None else is_executable_attr.strip().lower() == "true",
         documentation=_read_documentation(element),
         extensions=_read_extensions(element),
+        source_line=line_of(element),
     )
     handled = {"documentation", "extensionElements"}
     for child in element:
@@ -427,14 +448,19 @@ def _parse_process(element: Element, ctx: _Collector) -> Optional[ProcessGraph]:
 def _parse_collaboration(element: Element, document: BpmnDocument, ctx: _Collector) -> None:
     collaboration_id = element.get("id")
     if collaboration_id:
-        ctx.register_id(collaboration_id, "collaboration", None)
+        ctx.register_id(collaboration_id, "collaboration", None, line_of(element))
     for child in element:
         child_ns, local = split_tag(child.tag)
         if child_ns == BPMN_NS and local == "participant":
             participant_id = ctx.require_id(child, "participant", None)
             if participant_id is not None:
                 document.participants.append(
-                    Participant(id=participant_id, name=child.get("name"), process_ref=child.get("processRef"))
+                    Participant(
+                        id=participant_id,
+                        name=child.get("name"),
+                        process_ref=child.get("processRef"),
+                        source_line=line_of(child),
+                    )
                 )
         else:
             ctx.keep_unrecognized(child, collaboration_id, None, document.unrecognized)
@@ -450,6 +476,7 @@ def parse_document(root: Element) -> Tuple[Optional[BpmnDocument], List[Diagnost
             f"The root element must be <definitions> in the BPMN 2.0 model namespace ({BPMN_NS}); "
             f"found '{root.tag}'.",
             element_type=split_tag(root.tag)[1],
+            line=line_of(root),
         )
         return None, ctx.diagnostics
 
@@ -458,9 +485,10 @@ def parse_document(root: Element) -> Tuple[Optional[BpmnDocument], List[Diagnost
         name=root.get("name"),
         target_namespace=root.get("targetNamespace"),
         extensions=_read_extensions(root),
+        source_line=line_of(root),
     )
     if document.definitions_id:
-        ctx.register_id(document.definitions_id, "definitions", None)
+        ctx.register_id(document.definitions_id, "definitions", None, line_of(root))
 
     handled = {"extensionElements"}
     for child in root:
@@ -472,12 +500,7 @@ def parse_document(root: Element) -> Tuple[Optional[BpmnDocument], List[Diagnost
         elif child_ns == BPMN_NS and local == "collaboration":
             _parse_collaboration(child, document, ctx)
         elif child_ns == BPMNDI_NS:
-            ctx.not_imported(
-                local,
-                child.get("id"),
-                None,
-                "diagram layout is not part of the IR; keep the original XML to preserve it.",
-            )
+            ctx.not_imported(child, None, "diagram layout is not part of the IR; keep the original XML to preserve it.")
         elif child_ns == BPMN_NS and local in handled:
             continue
         else:

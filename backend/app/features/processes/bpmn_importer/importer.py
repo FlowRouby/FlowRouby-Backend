@@ -20,7 +20,7 @@ class BpmnImporter:
         except XmlLoadError as exc:
             return ImportResult(
                 document=None,
-                diagnostics=[Diagnostic(Severity.ERROR, DiagnosticCode.XML_MALFORMED, str(exc))],
+                diagnostics=[Diagnostic(Severity.ERROR, DiagnosticCode.XML_MALFORMED, str(exc), line=exc.line)],
             )
 
         document, diagnostics = parse_document(root)

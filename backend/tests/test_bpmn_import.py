@@ -685,3 +685,114 @@ def test_compile_refuses_to_analyze_a_process_that_was_not_fully_understood(
         compile_bpmn_process(files=[_upload(xml)])
     assert caught.value.status_code == 422
     assert [d["code"] for d in caught.value.detail["diagnostics"]] == expected_codes
+
+
+# --- source lines --------------------------------------------------------------------------------
+
+
+def numbered_document(*process_lines: str) -> str:
+    """A prefixed document whose process children start on line 4 (one element per line)."""
+    return "\n".join(
+        [
+            '<?xml version="1.0" encoding="UTF-8"?>',  # line 1
+            f'<bpmn:definitions xmlns:bpmn="{BPMN_NS}" id="Defs">',  # line 2
+            '  <bpmn:process id="P">',  # line 3
+            *process_lines,  # line 4 onwards
+            "  </bpmn:process>",
+            "</bpmn:definitions>",
+        ]
+    )
+
+
+def test_dangling_reference_diagnostic_points_at_the_sequence_flow_line() -> None:
+    result = imported(
+        numbered_document(
+            '    <bpmn:startEvent id="S"/>',  # 4
+            '    <bpmn:endEvent id="E"/>',  # 5
+            '    <bpmn:sequenceFlow id="f1" sourceRef="S" targetRef="Ghost"/>',  # 6
+        )
+    )
+    assert [(d.code.value, d.element_id, d.line) for d in result.errors] == [("INVALID_REFERENCE", "f1", 6)]
+    assert result.errors[0].to_dict()["line"] == 6 and result.errors[0].to_dict()["elementId"] == "f1"
+
+
+def test_unsupported_element_diagnostic_points_at_its_start_tag_line() -> None:
+    result = imported(
+        numbered_document(
+            '    <bpmn:startEvent id="S"/>',  # 4
+            "",  # 5
+            '    <bpmn:subProcess id="Sub" name="Nested">',  # 6
+            '      <bpmn:task id="Inner"/>',  # 7
+            "    </bpmn:subProcess>",  # 8
+            '    <bpmn:endEvent id="E"/>',  # 9
+            '    <bpmn:sequenceFlow id="f1" sourceRef="S" targetRef="Sub"/>',  # 10
+            '    <bpmn:sequenceFlow id="f2" sourceRef="Sub" targetRef="E"/>',  # 11
+        )
+    )
+    unsupported = [d for d in result.diagnostics if d.code is DiagnosticCode.UNSUPPORTED_ELEMENT]
+    assert [(d.element_id, d.line) for d in unsupported] == [("Sub", 6)]
+    assert result.process.nodes["Sub"].source_line == 6
+    assert result.process.edges["f2"].source_line == 11
+
+
+def test_malformed_xml_diagnostic_uses_the_parse_error_line() -> None:
+    result = imported("<definitions>\n<process>\n</definitions>")  # closing tag mismatch on line 3
+    assert [(d.code.value, d.line) for d in result.diagnostics] == [("XML_MALFORMED", 3)]
+
+
+def test_dtd_rejection_reports_the_line_of_the_declaration() -> None:
+    result = imported('<?xml version="1.0"?>\n<!DOCTYPE d [<!ENTITY x "y">]>\n<d/>')
+    assert [(d.code.value, d.line) for d in result.diagnostics] == [("XML_MALFORMED", 2)]
+
+
+def test_duplicate_id_diagnostic_points_at_the_second_occurrence() -> None:
+    result = imported(
+        numbered_document(
+            '    <bpmn:startEvent id="S"/>',  # 4
+            '    <bpmn:task id="T"/>',  # 5
+            '    <bpmn:task id="T"/>',  # 6
+            '    <bpmn:endEvent id="E"/>',  # 7
+        )
+    )
+    assert [(d.code.value, d.element_id, d.line) for d in result.errors] == [("DUPLICATE_ID", "T", 6)]
+
+
+def test_profile_and_structure_diagnostics_carry_lines_too() -> None:
+    no_end = imported(numbered_document('    <bpmn:startEvent id="S"/>'))
+    assert [(d.code.value, d.line) for d in no_end.errors] == [("NO_END_EVENT", 3)]
+
+    two_starts = imported(
+        numbered_document(
+            '    <bpmn:startEvent id="S1"/>',  # 4
+            '    <bpmn:startEvent id="S2"/>',  # 5
+            '    <bpmn:endEvent id="E"/>',  # 6
+            '    <bpmn:sequenceFlow id="f1" sourceRef="S1" targetRef="E"/>',  # 7
+            '    <bpmn:sequenceFlow id="f2" sourceRef="S2" targetRef="E"/>',  # 8
+        )
+    )
+    assert [(d.code.value, d.line) for d in two_starts.analysis_blockers] == [("MULTIPLE_START_EVENTS", 5)]
+
+
+def test_unnamed_gateway_in_a_deadlock_is_described_by_its_id() -> None:
+    deadlock_xml = definitions(
+        process(
+            """
+            <bpmn:startEvent id="Start_1"/><bpmn:exclusiveGateway id="XOR_Split" default="f2"/>
+            <bpmn:userTask id="Task_A"/><bpmn:userTask id="Task_B"/>
+            <bpmn:parallelGateway id="AND_Join"/><bpmn:endEvent id="End_1"/>
+            """
+            + flow("f1", "Start_1", "XOR_Split")
+            + flow("f2", "XOR_Split", "Task_A")
+            + flow("f3", "XOR_Split", "Task_B", "<bpmn:conditionExpression>${x == 1}</bpmn:conditionExpression>")
+            + flow("f4", "Task_A", "AND_Join")
+            + flow("f5", "Task_B", "AND_Join")
+            + flow("f6", "AND_Join", "End_1")
+        )
+    )
+    graph = one_process(deadlock_xml)
+    assert graph.nodes["AND_Join"].name is None
+
+    deadlocks = [d for d in FormalAnalysisService().analyze(graph).deadlocks if d["type"] == "GATEWAY_DEADLOCK"]
+    assert [d["node_id"] for d in deadlocks] == ["AND_Join"]
+    assert "'AND_Join' (AND_Join)" in deadlocks[0]["message"]
+    assert "None" not in deadlocks[0]["message"]

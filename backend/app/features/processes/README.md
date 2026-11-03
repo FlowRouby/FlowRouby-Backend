@@ -28,19 +28,23 @@ XML text -> xml_loader (defusedxml) -> parser (IR) -> validator (diagnostics) ->
 * Unsupported flow nodes become `UnsupportedNode` (with the full original element in `source`)
   so sequence flows stay consistent.
 * BPMNDI layout data is not imported; keep the original XML to preserve it.
+* Processes, nodes, flows, lanes and participants keep `source_line`, the line of their start tag in
+  the imported XML (also used by diagnostics).
 
 ## Supported subset
 
 | Level | Elements |
 | --- | --- |
 | Analyzable | `startEvent`, `endEvent`, `task`, `userTask`, `serviceTask`, `manualTask`, `scriptTask`, `sendTask`, `receiveTask`, `businessRuleTask`, `exclusiveGateway`, `parallelGateway`, `sequenceFlow` |
-| Preserved, limited analysis | `callActivity` (treated as one atomic step), `inclusiveGateway` (experimental) |
+| Imported and valid for code generation, outside the initial analysis profile (provisional analysis) | `callActivity`, `inclusiveGateway` |
 | Unsupported (kept as opaque nodes) | `intermediateCatchEvent`, `intermediateThrowEvent`, `boundaryEvent`, `subProcess`, `adHocSubProcess`, `transaction`, `eventBasedGateway`, `complexGateway` |
 
 ## Diagnostics
 
 A `Diagnostic` has `severity` (`error`/`warning`/`info`), `code`, `message`, `elementId`,
-`elementType`, `processId` and `blocksAnalysis`. All problems are collected, not just the first.
+`elementType`, `processId`, `blocksAnalysis` and `line` (line of the element's start tag in the
+imported XML, when known; for `XML_MALFORMED` it is the parser's error line). All problems are
+collected, not just the first.
 When any error exists, `ImportResult.document` is `None`.
 
 | Code | Severity | Meaning |
@@ -56,7 +60,7 @@ When any error exists, `ImportResult.document` is `None`.
 | `MULTIPLE_START_EVENTS` | warning, blocks analysis | **FlowRouby profile rule**: imported, analysis blocked until a formal representation exists. Several end events are allowed |
 | `MULTIPLE_PROCESSES` | warning, blocks analysis | All processes are imported; analysis works on one |
 | `UNSUPPORTED_ELEMENT` | warning | Element kept but not interpreted; blocks analysis when it changes behavior |
-| `PRESERVED_NOT_ANALYZABLE` | warning | Imported faithfully, analyzed with limits (see table above) |
+| `PRESERVED_NOT_ANALYZABLE` | warning, does not block analysis | `callActivity` / `inclusiveGateway`: imported and valid for code generation, but outside FlowRouby's initial formal-analysis profile, so analysis results involving them are provisional. This describes a profile decision, not missing code: the current NFA builder models a call activity as an atomic symbol and inclusive split/join pairs through flag regions |
 | `DISCONNECTED_NODE`, `GATEWAY_WITHOUT_OUTGOING`, `XOR_FLOW_WITHOUT_CONDITION_OR_DEFAULT` | warning | Structural hints; analysis still runs and reports the consequences |
 | `IGNORED_ELEMENT` | info | Preserved as unrecognized content (or, for BPMNDI, not imported) |
 

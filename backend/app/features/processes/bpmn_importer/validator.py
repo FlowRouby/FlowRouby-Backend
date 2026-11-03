@@ -9,7 +9,7 @@ Two kinds of rules live here and are labeled as such in every message:
 
 from __future__ import annotations
 
-from typing import List
+from typing import List, Optional
 
 from ..intermediate_model.diagnostics import Diagnostic, DiagnosticCode, Severity
 from ..intermediate_model.models import (
@@ -34,6 +34,7 @@ def validate_document(document: BpmnDocument) -> List[Diagnostic]:
                 DiagnosticCode.NO_PROCESS,
                 "The document contains no <process> element.",
                 element_type="process",
+                line=document.source_line,
             )
         )
     elif len(document.processes) > 1:
@@ -46,6 +47,7 @@ def validate_document(document: BpmnDocument) -> List[Diagnostic]:
                 "works on one process at a time.",
                 element_type="process",
                 blocks_analysis=True,
+                line=document.processes[1].source_line,
             )
         )
 
@@ -59,6 +61,7 @@ def validate_document(document: BpmnDocument) -> List[Diagnostic]:
                     f"'{participant.process_ref}'.",
                     participant.id,
                     "participant",
+                    line=participant.source_line,
                 )
             )
 
@@ -69,9 +72,17 @@ def validate_document(document: BpmnDocument) -> List[Diagnostic]:
     return diagnostics
 
 
-def _error_ref(process: ProcessGraph, element_id: str, element_type: str, message: str) -> Diagnostic:
+def _error_ref(
+    process: ProcessGraph, element_id: str, element_type: str, message: str, line: Optional[int]
+) -> Diagnostic:
     return Diagnostic(
-        Severity.ERROR, DiagnosticCode.INVALID_REFERENCE, message, element_id, element_type, process.process_id
+        Severity.ERROR,
+        DiagnosticCode.INVALID_REFERENCE,
+        message,
+        element_id,
+        element_type,
+        process.process_id,
+        line=line,
     )
 
 
@@ -85,6 +96,7 @@ def _check_references(process: ProcessGraph) -> List[Diagnostic]:
                     edge.id,
                     "sequenceFlow",
                     f"The sequenceFlow '{edge.id}' references the unknown sourceRef '{edge.source_ref}'.",
+                    edge.source_line,
                 )
             )
         if edge.target_ref not in process.nodes:
@@ -94,6 +106,7 @@ def _check_references(process: ProcessGraph) -> List[Diagnostic]:
                     edge.id,
                     "sequenceFlow",
                     f"The sequenceFlow '{edge.id}' references the unknown targetRef '{edge.target_ref}'.",
+                    edge.source_line,
                 )
             )
     for lane in process.lanes:
@@ -101,7 +114,11 @@ def _check_references(process: ProcessGraph) -> List[Diagnostic]:
             if ref not in process.nodes:
                 found.append(
                     _error_ref(
-                        process, lane.id, "lane", f"The lane '{lane.id}' references the unknown flow node '{ref}'."
+                        process,
+                        lane.id,
+                        "lane",
+                        f"The lane '{lane.id}' references the unknown flow node '{ref}'.",
+                        lane.source_line,
                     )
                 )
     for node in process.nodes.values():
@@ -116,6 +133,7 @@ def _check_references(process: ProcessGraph) -> List[Diagnostic]:
                     node.bpmn_type,
                     f"The default flow '{node.default_flow_id}' of '{node.id}' is not one of its outgoing "
                     "sequence flows.",
+                    node.source_line,
                 )
             )
     return found
@@ -134,6 +152,7 @@ def _check_profile_rules(process: ProcessGraph) -> List[Diagnostic]:
                 "This is a FlowRouby restriction, not a general BPMN rule.",
                 element_type="startEvent",
                 process_id=pid,
+                line=process.source_line,
             )
         )
     elif len(starts) > 1:
@@ -147,6 +166,7 @@ def _check_profile_rules(process: ProcessGraph) -> List[Diagnostic]:
                 element_type="startEvent",
                 process_id=pid,
                 blocks_analysis=True,
+                line=starts[1].source_line,
             )
         )
     if not process.end_nodes:
@@ -158,6 +178,7 @@ def _check_profile_rules(process: ProcessGraph) -> List[Diagnostic]:
                 "This is a FlowRouby restriction, not a general BPMN rule.",
                 element_type="endEvent",
                 process_id=pid,
+                line=process.source_line,
             )
         )
     return found
@@ -184,6 +205,7 @@ def _check_structure(process: ProcessGraph) -> List[Diagnostic]:
                     node.id,
                     node.bpmn_type,
                     pid,
+                    line=node.source_line,
                 )
             )
         if isinstance(node, GatewayNode) and no_out:
@@ -195,6 +217,7 @@ def _check_structure(process: ProcessGraph) -> List[Diagnostic]:
                     node.id,
                     node.bpmn_type,
                     pid,
+                    line=node.source_line,
                 )
             )
         if node.node_type is NodeType.EXCLUSIVE_GATEWAY and len(node.outgoing_flows) > 1:
@@ -209,6 +232,7 @@ def _check_structure(process: ProcessGraph) -> List[Diagnostic]:
                             edge.id,
                             "sequenceFlow",
                             pid,
+                            line=edge.source_line,
                         )
                     )
     return found
