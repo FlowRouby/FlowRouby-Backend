@@ -25,6 +25,7 @@
 - [x] T3 Compatibility: Camunda adapter + minimal emitter / nfa_builder / main.py adjustments — route: delegated
 - [x] T4 Tests: `tests/test_bpmn_import.py` (inline fixtures) and run the full suite — route: delegated
 - [x] T5 Final report (files, scope, diagnostics, results, limitations, impact) — delivered to the user; orchestrator re-ran pytest: 36 passed, 3 failed (missing `../process_models` fixtures)
+- [x] T7 Import-only endpoint `POST /api/v1/processes/import` (router + camelCase serializer + tests) — route: delegated
 
 ## Acceptance criteria
 IDs/names preserved, edges and conditions preserved, unsupported elements reported, structural errors detected, no silent loss, importer independent of FlowSpec/Ruby/MongoDB/automata, tests runnable.
@@ -37,6 +38,7 @@ IDs/names preserved, edges and conditions preserved, unsupported elements report
 - T4 (route: delegated): `tests/test_bpmn_import.py` (34 tests, inline fixtures) and existing pipeline tests migrated to the new API. Check: full `pytest -q` from `backend/` = 36 passed, 3 failed. The 3 failures are the pre-existing ones (`test_import_realizar_visita_tecnica_bpmn`, `test_import_and_formal_analysis_tec_failures_bpmn`, `test_fastapi_endpoints_compile_and_simulate`): they open `../process_models/*.bpmn`, which is git-ignored and absent from the repo (baseline on `main`: 3 failed, 2 passed).
 - Commits: T1 `0ba1938`, T2 `d4e4fc3`, T3 `a5b6bb2`, T4 `38ee924`.
 - T6 (route: delegated): verified on the venv Python 3.14.7 that `DefusedXMLParser(target=TreeBuilder(element_factory=...))` exposes `parser.parser.CurrentLineNumber` per start tag, so lines are recorded on a `SourceElement` subclass without weakening defusedxml (DTD/entities still rejected). `Diagnostic.line` plus `source_line` on IR elements; XML_MALFORMED uses the ParseError line (DTD rejection uses the declaration line). Wording of PRESERVED_NOT_ANALYZABLE and README updated (still non-blocking). `nfa_builder` GATEWAY_DEADLOCK message now uses `node.name or node.id`; no other IR `.name` message interpolation exists in formal_analysis (simulator/generator read the FlowSpec AST, whose names the emitter already defaults). Check: full `pytest -q` from `backend/` = 43 passed, 3 failed (the same 3 pre-existing `../process_models` failures).
+- T7 (route: delegated, branch `feat/bpmn-importer-ir-07-import-endpoint` from `feat/bpmn-importer-ir-06-contract` tip `dc06c74`): `processes/router.py` (thin `APIRouter`, registered with one `include_router` line in `main.py`), `processes/import_response.py` (explicit camelCase view of the IR; extension attribute keys kept as data), `tests/test_import_endpoint.py` (18 tests with TestClient). Reuses `ProcessImportService`; compile/simulate untouched and covered by regression tests. Check: full `pytest -q` from `backend/` = 61 passed, 3 failed (the same 3 pre-existing `../process_models` failures). Docs: `docs/api-contract-bpmn-import.md` gains section 1.1 with real request/response examples; the "no import-only endpoint" gap is removed, CORS stays listed.
 
 ## Next step
 T5 (final report by the orchestrator)

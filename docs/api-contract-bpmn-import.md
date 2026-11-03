@@ -4,7 +4,7 @@ Contrato entre el backend (FastAPI) y el frontend (Angular + bpmn-js) para la im
 Los ejemplos de este documento fueron obtenidos ejecutando la API real; no son ilustrativos.
 
 - Base URL local: `http://localhost:8000` (Swagger en `/docs`).
-- Todas las claves de diagnóstico están en `camelCase`. El resto de la respuesta (`metadata`, `formal_analysis`, ...) conserva `snake_case`.
+- Todas las claves de diagnóstico están en `camelCase`, y también toda la respuesta de `/import`. El resto de la respuesta de `compile` (`metadata`, `formal_analysis`, ...) conserva `snake_case`.
 - Los IDs de BPMN (`elementId`) son **los originales del XML**, los mismos que usa bpmn-js. Sirven para resaltar elementos en el canvas.
 
 ## 1. Endpoints que reciben BPMN
@@ -13,8 +13,283 @@ Los ejemplos de este documento fueron obtenidos ejecutando la API real; no son i
 |---|---|---|---|
 | POST | `/api/v1/processes/compile` | `multipart/form-data`, campo `files` (exactamente 1 archivo `.bpmn` o `.xml`) | Importa, analiza, emite FlowSpec y genera Ruby |
 | POST | `/api/v1/processes/simulate` | `multipart/form-data`, campo `file` (`.bpmn`) **o** `flowspec_code`; opcional `input_data` (JSON string) | Simulación sin estado |
+| POST | `/api/v1/processes/import` | `multipart/form-data`, campo `file` (exactamente 1 archivo `.bpmn` o `.xml`) | **Solo importa**: devuelve el modelo y los diagnósticos, sin análisis, FlowSpec, Ruby ni persistencia |
 
-Ambos importan el XML con las mismas reglas. No existe todavía un endpoint que **solo importe** (ver sección 6).
+Los tres importan el XML con las mismas reglas. `compile` y `simulate` se detienen (`422`) cuando el análisis no puede ejecutarse; `import` responde `200` en ese caso para que el diagrama pueda mostrarse.
+
+### 1.1 `POST /api/v1/processes/import`
+
+**Petición:** `multipart/form-data` con un único campo `file`. Se aplican las reglas de carga del servicio de importación (una sola extensión válida: `.bpmn` o `.xml`; otro caso responde `INVALID_UPLOAD`).
+
+**Respuestas:**
+
+| HTTP | Cuándo | Cuerpo |
+|---|---|---|
+| `200` | Se pudo construir el modelo, aunque haya advertencias o el análisis esté bloqueado | `{ "supported", "diagnostics", "document" }` |
+| `422` | No se pudo importar (hay diagnósticos `error`) | `{ "detail": { "message", "diagnostics": [errores] } }` (igual que `compile`, ver 2.2) |
+| `422` | Falta el campo `file` | lista de errores de validación de FastAPI (ver 2.4) |
+
+**Campos de la respuesta `200`:**
+
+| Campo | Descripción |
+|---|---|
+| `supported` | `true` si el **análisis formal puede ejecutarse** sobre esta importación (ningún diagnóstico tiene `blocksAnalysis: true`). **No** significa "el diagrama es BPMN válido": un diagrama importable con `supported: false` se puede visualizar igual |
+| `diagnostics` | **Todos** los diagnósticos (`error` no puede aparecer aquí; sí `warning` e `info`, bloqueantes o no) con la forma de la sección 3 |
+| `document` | El modelo importado (ver abajo) |
+
+**Forma de `document`** (todas las claves en `camelCase`; los nombres de atributos de extensión son datos del XML y se devuelven tal cual):
+
+| Ruta | Contenido |
+|---|---|
+| `document` | `definitionsId`, `name`, `targetNamespace`, `sourceLine`, `participants[]`, `processes[]`, `extensions`, `unrecognized[]` |
+| `processes[]` | `id`, `name`, `isExecutable`, `documentation`, `sourceLine`, `participant`, `laneSets[]`, `nodes[]`, `sequenceFlows[]`, `extensions`, `unrecognized[]`. Se devuelven **todos** los procesos del documento |
+| `laneSets[].lanes[]` | `id`, `name`, `flowNodeRefs[]`, `childLaneSet`, `sourceLine` |
+| `nodes[]` | `id` (ID BPMN original), `name`, `bpmnType` (tag BPMN), `nodeType` (tipo normalizado), `support` (`analyzable`, `preserved` o `unsupported`), `documentation`, `defaultFlowId`, `incoming[]` y `outgoing[]` (IDs de flujos), `sourceLine`, `extensions`, `unrecognized[]`. Según el tipo, además: `scriptFormat` y `script` (`scriptTask`), `calledElement` (`callActivity`), `source` (nodos `unsupported`: el elemento original completo) |
+| `sequenceFlows[]` | `id`, `sourceRef`, `targetRef`, `name`, `condition` (`{ text, language, xsiType }` con el texto sin modificar, o `null`), `isDefault`, `documentation`, `sourceLine`, `extensions`, `unrecognized[]` |
+| `extensions` | `{ attributes, elements[] }`: atributos y elementos de otros namespaces (por ejemplo Camunda), identificados por URI. Atributo: clave `"{namespaceUri}nombre"`. Elemento: `{ namespaceUri, localName, attributes, text, children[] }` |
+| `unrecognized[]` | Contenido BPMN que FlowRouby no interpreta, con la misma forma genérica que `extensions.elements[]`. No se pierde |
+
+Los nodos no soportados (`nodeType: "unsupported"`) **aparecen en `nodes[]`** con su ID, para poder resaltarlos en el canvas.
+
+**Ejemplo: proceso de 3 nodos importado correctamente** (respuesta real, `200`):
+
+```json
+{
+  "supported": true,
+  "diagnostics": [],
+  "document": {
+    "definitionsId": "Defs",
+    "name": null,
+    "targetNamespace": null,
+    "sourceLine": 2,
+    "participants": [],
+    "processes": [
+      {
+        "id": "P",
+        "name": "Demo",
+        "isExecutable": true,
+        "documentation": null,
+        "sourceLine": 3,
+        "participant": null,
+        "laneSets": [],
+        "nodes": [
+          {
+            "id": "Start",
+            "name": "Begin",
+            "bpmnType": "startEvent",
+            "nodeType": "start_event",
+            "support": "analyzable",
+            "documentation": null,
+            "defaultFlowId": null,
+            "incoming": [],
+            "outgoing": [
+              "f1"
+            ],
+            "sourceLine": 4,
+            "extensions": {
+              "attributes": {},
+              "elements": []
+            },
+            "unrecognized": []
+          },
+          {
+            "id": "Task_A",
+            "name": "Register request",
+            "bpmnType": "userTask",
+            "nodeType": "user_task",
+            "support": "analyzable",
+            "documentation": null,
+            "defaultFlowId": null,
+            "incoming": [
+              "f1"
+            ],
+            "outgoing": [
+              "f2"
+            ],
+            "sourceLine": 5,
+            "extensions": {
+              "attributes": {
+                "{http://camunda.org/schema/1.0/bpmn}formKey": "form1"
+              },
+              "elements": []
+            },
+            "unrecognized": []
+          },
+          {
+            "id": "End",
+            "name": "Done",
+            "bpmnType": "endEvent",
+            "nodeType": "end_event",
+            "support": "analyzable",
+            "documentation": null,
+            "defaultFlowId": null,
+            "incoming": [
+              "f2"
+            ],
+            "outgoing": [],
+            "sourceLine": 6,
+            "extensions": {
+              "attributes": {},
+              "elements": []
+            },
+            "unrecognized": []
+          }
+        ],
+        "sequenceFlows": [
+          {
+            "id": "f1",
+            "sourceRef": "Start",
+            "targetRef": "Task_A",
+            "name": null,
+            "condition": null,
+            "isDefault": false,
+            "documentation": null,
+            "sourceLine": 7,
+            "extensions": {
+              "attributes": {},
+              "elements": []
+            },
+            "unrecognized": []
+          },
+          {
+            "id": "f2",
+            "sourceRef": "Task_A",
+            "targetRef": "End",
+            "name": null,
+            "condition": null,
+            "isDefault": false,
+            "documentation": null,
+            "sourceLine": 8,
+            "extensions": {
+              "attributes": {},
+              "elements": []
+            },
+            "unrecognized": []
+          }
+        ],
+        "extensions": {
+          "attributes": {},
+          "elements": []
+        },
+        "unrecognized": []
+      }
+    ],
+    "extensions": {
+      "attributes": {},
+      "elements": []
+    },
+    "unrecognized": []
+  }
+}
+```
+
+**Ejemplo: diagrama con un subproceso** (`200`, `supported: false`). Se muestran `supported`, `diagnostics` y el nodo `Sub` de `document.processes[0].nodes` (fragmento de la respuesta real):
+
+```json
+{
+  "supported": false,
+  "diagnostics": [
+    {
+      "severity": "warning",
+      "code": "UNSUPPORTED_ELEMENT",
+      "message": "<subProcess> is not supported yet; it is kept as an opaque node.",
+      "elementId": "Sub",
+      "elementType": "subProcess",
+      "processId": "P",
+      "blocksAnalysis": true,
+      "line": 5
+    }
+  ]
+}
+```
+
+```json
+{
+  "id": "Sub",
+  "name": "Nested",
+  "bpmnType": "subProcess",
+  "nodeType": "unsupported",
+  "support": "unsupported",
+  "documentation": null,
+  "defaultFlowId": null,
+  "incoming": [
+    "f1"
+  ],
+  "outgoing": [
+    "f2"
+  ],
+  "sourceLine": 5,
+  "extensions": {
+    "attributes": {},
+    "elements": []
+  },
+  "unrecognized": [],
+  "source": {
+    "namespaceUri": "http://www.omg.org/spec/BPMN/20100524/MODEL",
+    "localName": "subProcess",
+    "attributes": {
+      "id": "Sub",
+      "name": "Nested"
+    },
+    "text": null,
+    "children": [
+      {
+        "namespaceUri": "http://www.omg.org/spec/BPMN/20100524/MODEL",
+        "localName": "task",
+        "attributes": {
+          "id": "Inner"
+        },
+        "text": null,
+        "children": []
+      }
+    ]
+  }
+}
+```
+
+**Ejemplo: no se puede importar** (`422`, proceso sin `endEvent`):
+
+```json
+{
+  "detail": {
+    "message": "The BPMN document could not be imported.",
+    "diagnostics": [
+      {
+        "severity": "error",
+        "code": "NO_END_EVENT",
+        "message": "FlowRouby import profile: process 'P' must contain an endEvent. This is a FlowRouby restriction, not a general BPMN rule.",
+        "elementId": null,
+        "elementType": "endEvent",
+        "processId": "P",
+        "blocksAnalysis": false,
+        "line": 3
+      }
+    ]
+  }
+}
+```
+
+**Ejemplo: extensión inválida** (`422`, archivo `demo.txt`):
+
+```json
+{
+  "detail": {
+    "message": "The BPMN document could not be imported.",
+    "diagnostics": [
+      {
+        "severity": "error",
+        "code": "INVALID_UPLOAD",
+        "message": "Invalid file extension for 'demo.txt'. Expected a .bpmn or .xml file.",
+        "elementId": null,
+        "elementType": null,
+        "processId": null,
+        "blocksAnalysis": false,
+        "line": null
+      }
+    ]
+  }
+}
+```
 
 ## 2. Respuestas
 
@@ -96,6 +371,8 @@ El documento es válido pero contiene algo que FlowRouby todavía no interpreta.
 
 Aquí `detail.diagnostics` contiene **solo los diagnósticos que bloquean** (`blocksAnalysis: true`). Las demás advertencias no se incluyen en este caso.
 
+Para mostrar el diagrama aunque no pueda analizarse, usar `POST /api/v1/processes/import` (1.1), que responde `200` con el modelo y `supported: false`.
+
 ### 2.4 Otros `422` (no son diagnósticos de importación)
 Distingue la forma de `detail`:
 
@@ -161,12 +438,12 @@ Varios `endEvent` están permitidos y no generan diagnóstico.
 - Decidir la lógica por `code`, `severity` y `blocksAnalysis`; **nunca** por el texto de `message`.
 - Tratar `info` como no intrusivo (por ejemplo, un contador), `warning` como aviso visible y `error` como bloqueo.
 - `bpmn-js` valida y muestra el diagrama por su cuenta: un `422` del backend no impide visualizar el XML en el canvas.
+- Para mostrar el modelo importado y sus diagnósticos sin ejecutar análisis, llamar a `/import` y usar `supported` solo para decidir si ofrecer `compile`/`simulate`.
 
 ## 6. Limitaciones y pendientes
 
-1. **No hay endpoint de solo importación.** Hoy un diagrama con `blocksAnalysis: true` devuelve únicamente diagnósticos y no el modelo importado. Se propone `POST /api/v1/processes/import` que devuelva modelo + diagnósticos sin ejecutar análisis. Pendiente de aprobación.
-2. **No hay CORS configurado.** El backend no incluye `CORSMiddleware`; el frontend en otro origen será bloqueado por el navegador hasta que se configure.
-3. **Sin persistencia.** Nada se guarda; cada petición importa de cero (MongoDB queda para una etapa posterior).
-4. `message` está en inglés y no es estable; el frontend debe traducir por `code`.
-5. Los endpoints `/api/v1/flowspec/compile` y la simulación sobre `flowspec_code` no forman parte de este contrato.
-6. En `compile`, un `process` sin atributo `isExecutable` devuelve `is_executable: null`.
+1. **No hay CORS configurado.** El backend no incluye `CORSMiddleware`; el frontend en otro origen será bloqueado por el navegador hasta que se configure.
+2. **Sin persistencia.** Nada se guarda; cada petición importa de cero (MongoDB queda para una etapa posterior).
+3. `message` está en inglés y no es estable; el frontend debe traducir por `code`.
+4. Los endpoints `/api/v1/flowspec/compile` y la simulación sobre `flowspec_code` no forman parte de este contrato.
+5. En `compile`, un `process` sin atributo `isExecutable` devuelve `is_executable: null`.

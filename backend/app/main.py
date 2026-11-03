@@ -32,6 +32,7 @@ from .features.formal_analysis.services.analysis_service import FormalAnalysisSe
 from .features.processes.intermediate_model.diagnostics import Diagnostic
 from .features.processes.intermediate_model.models import ProcessGraph
 from .features.processes.services.process_service import ProcessImportService
+from .features.processes.router import router as processes_router
 
 app = FastAPI(
     title="SHTLNG BPMN -> FlowSpec -> Ruby Compiler API",
@@ -42,6 +43,8 @@ app = FastAPI(
     ),
     version="1.0.0",
 )
+
+app.include_router(processes_router)
 
 process_service = ProcessImportService()
 formal_service = FormalAnalysisService()

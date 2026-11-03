@@ -82,3 +82,18 @@ Minimal emitter adjustments: it applies FlowSpec conventions the IR no longer ca
 removal from conditions, and the implicit default branch of a gateway with a single
 unconditional flow). `main.py` stops the compile and simulate pipelines with HTTP 422 and the
 relevant diagnostics when the import has errors or analysis is blocked.
+
+## Import-only endpoint
+
+`POST /api/v1/processes/import` (`router.py`, response built by `import_response.py`) imports a
+single `.bpmn`/`.xml` file through `ProcessImportService` and returns the IR as camelCase JSON. It
+runs no formal analysis, FlowSpec emission, semantic analysis, code generation or persistence.
+
+* Import errors answer `422` with `{"detail": {"message", "diagnostics": [errors]}}`, like `compile`.
+* Otherwise it answers `200` with `{"supported", "diagnostics", "document"}`, even when warnings
+  exist or analysis is blocked, so the frontend can still display the diagram. `supported` means
+  "formal analysis can run on this import" (no diagnostic has `blocksAnalysis: true`); it does not
+  mean "the diagram is valid BPMN".
+* `document` lists every process with its nodes (including unsupported ones, by BPMN id), sequence
+  flows, lane sets and the generic namespace-keyed `extensions`. Extension attribute names are data
+  from the XML and are returned unchanged.
