@@ -1,4 +1,10 @@
-"""Data structures for the Intermediate Process Model (extracted from BPMN 2.0 / Camunda XML)."""
+"""Vendor-neutral Intermediate Model (IR) of BPMN 2.0 processes.
+
+The IR keeps what BPMN 2.0 itself defines (ids, names, element types, sequence flows,
+conditions, lanes, script and called-element data) and derived structure (incoming and
+outgoing flow ids, default-flow markers). Anything vendor specific lives in each element's
+``extensions``. The IR knows nothing about FlowSpec, Ruby, automata or persistence.
+"""
 
 from __future__ import annotations
 
@@ -6,19 +12,35 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
+from .extensions import Extensions
+
 
 class NodeType(str, Enum):
+    """Normalized BPMN element types. ``UNSUPPORTED`` nodes keep their original tag in ``bpmn_type``."""
+
     START_EVENT = "start_event"
     END_EVENT = "end_event"
+    TASK = "task"
     USER_TASK = "user_task"
     SERVICE_TASK = "service_task"
     SCRIPT_TASK = "script_task"
     MANUAL_TASK = "manual_task"
     BUSINESS_RULE_TASK = "business_rule_task"
+    SEND_TASK = "send_task"
+    RECEIVE_TASK = "receive_task"
     CALL_ACTIVITY = "call_activity"
     EXCLUSIVE_GATEWAY = "exclusive_gateway"
     PARALLEL_GATEWAY = "parallel_gateway"
     INCLUSIVE_GATEWAY = "inclusive_gateway"
+    UNSUPPORTED = "unsupported"
+
+
+class SupportLevel(str, Enum):
+    """How far FlowRouby can take an imported element."""
+
+    ANALYZABLE = "analyzable"    # understood and usable by formal analysis
+    PRESERVED = "preserved"      # imported faithfully, but not analyzable yet
+    UNSUPPORTED = "unsupported"  # kept as an opaque node so the graph stays consistent
 
 
 class GatewayDirection(str, Enum):
@@ -28,294 +50,80 @@ class GatewayDirection(str, Enum):
     PASS_THROUGH = "pass_through"
 
 
-@dataclass
-class FormFieldSpec:
-    """Represents a Camunda form field (<camunda:formField>)."""
-    id: str
-    field_type: str = "string"  # boolean, long, integer, string, enum, date
-    label: str = ""
-    default_value: Optional[str] = None
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "id": self.id,
-            "type": self.field_type,
-            "label": self.label,
-            "default_value": self.default_value,
-        }
-
-
-@dataclass
-class HttpConnectorSpec:
-    """Represents a Camunda HTTP Connector (<camunda:connectorId>http-connector</camunda:connectorId>)."""
-    connector_id: str = "http-connector"
-    method: str = "GET"
-    url: str = ""
-    headers: Dict[str, str] = field(default_factory=dict)
-    payload_raw: Optional[str] = None
-    payload_variables: Dict[str, str] = field(default_factory=dict)
-    output_parameters: Dict[str, str] = field(default_factory=dict)
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "connector_id": self.connector_id,
-            "method": self.method,
-            "url": self.url,
-            "headers": dict(self.headers),
-            "payload_raw": self.payload_raw,
-            "payload_variables": dict(self.payload_variables),
-            "output_parameters": dict(self.output_parameters),
-        }
-
-
-@dataclass
-class VariableMappingSpec:
-    """Represents an input/output parameter or CallActivity variable mapping."""
-    source: str
-    target: str
-    is_expression: bool = False
-    all_variables: bool = False
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "source": self.source,
-            "target": self.target,
-            "is_expression": self.is_expression,
-            "all_variables": self.all_variables,
-        }
-
-
-@dataclass
+@dataclass(kw_only=True)
 class FlowNode:
-    """Base class for all BPMN flow nodes in the intermediate model."""
+    """Any BPMN flow node. Original ``id`` and ``name`` are never rewritten."""
+
     id: str
-    name: str
     node_type: NodeType
-    lane: Optional[str] = None
-    incoming_flows: List[str] = field(default_factory=list)
-    outgoing_flows: List[str] = field(default_factory=list)
-    input_parameters: Dict[str, str] = field(default_factory=dict)
-    output_parameters: Dict[str, str] = field(default_factory=dict)
+    bpmn_type: str  # original local tag name, e.g. "userTask"
+    name: Optional[str] = None
+    support: SupportLevel = SupportLevel.ANALYZABLE
+    documentation: Optional[str] = None
+    default_flow_id: Optional[str] = None  # BPMN "default" attribute (activities and gateways)
+    extensions: Extensions = field(default_factory=Extensions)
+    incoming_flows: List[str] = field(default_factory=list)  # derived from sequence flows
+    outgoing_flows: List[str] = field(default_factory=list)  # derived from sequence flows
 
     def to_dict(self) -> Dict[str, Any]:
         return {
             "id": self.id,
             "name": self.name,
             "node_type": self.node_type.value,
-            "lane": self.lane,
+            "bpmn_type": self.bpmn_type,
+            "support": self.support.value,
+            "documentation": self.documentation,
+            "default_flow_id": self.default_flow_id,
             "incoming_flows": list(self.incoming_flows),
             "outgoing_flows": list(self.outgoing_flows),
-            "input_parameters": dict(self.input_parameters),
-            "output_parameters": dict(self.output_parameters),
+            "extensions": self.extensions.to_dict(),
         }
 
 
-@dataclass
+@dataclass(kw_only=True)
 class StartEventNode(FlowNode):
-    form_ref: Optional[str] = None
-    form_fields: List[FormFieldSpec] = field(default_factory=list)
-
-    def __init__(
-        self,
-        id: str,
-        name: str = "",
-        lane: Optional[str] = None,
-        form_ref: Optional[str] = None,
-        form_fields: Optional[List[FormFieldSpec]] = None,
-        **kwargs: Any,
-    ):
-        super().__init__(id=id, name=name or id, node_type=NodeType.START_EVENT, lane=lane, **kwargs)
-        self.form_ref = form_ref
-        self.form_fields = form_fields or []
-
-    def to_dict(self) -> Dict[str, Any]:
-        base = super().to_dict()
-        base["form_ref"] = self.form_ref
-        base["form_fields"] = [f.to_dict() for f in self.form_fields]
-        return base
+    node_type: NodeType = NodeType.START_EVENT
+    bpmn_type: str = "startEvent"
 
 
-@dataclass
+@dataclass(kw_only=True)
 class EndEventNode(FlowNode):
-    def __init__(self, id: str, name: str = "", lane: Optional[str] = None, **kwargs: Any):
-        super().__init__(id=id, name=name or id, node_type=NodeType.END_EVENT, lane=lane, **kwargs)
+    node_type: NodeType = NodeType.END_EVENT
+    bpmn_type: str = "endEvent"
 
 
-@dataclass
-class UserTaskNode(FlowNode):
-    form_ref: Optional[str] = None
-    form_ref_binding: Optional[str] = None
-    form_fields: List[FormFieldSpec] = field(default_factory=list)
-
-    def __init__(
-        self,
-        id: str,
-        name: str = "",
-        lane: Optional[str] = None,
-        form_ref: Optional[str] = None,
-        form_ref_binding: Optional[str] = None,
-        form_fields: Optional[List[FormFieldSpec]] = None,
-        **kwargs: Any,
-    ):
-        super().__init__(id=id, name=name or id, node_type=NodeType.USER_TASK, lane=lane, **kwargs)
-        self.form_ref = form_ref
-        self.form_ref_binding = form_ref_binding
-        self.form_fields = form_fields or []
-
-    def to_dict(self) -> Dict[str, Any]:
-        base = super().to_dict()
-        base.update(
-            {
-                "form_ref": self.form_ref,
-                "form_ref_binding": self.form_ref_binding,
-                "form_fields": [f.to_dict() for f in self.form_fields],
-            }
-        )
-        return base
-
-
-@dataclass
-class ServiceTaskNode(FlowNode):
-    delegate_class: Optional[str] = None
-    http_connector: Optional[HttpConnectorSpec] = None
-
-    def __init__(
-        self,
-        id: str,
-        name: str = "",
-        lane: Optional[str] = None,
-        delegate_class: Optional[str] = None,
-        http_connector: Optional[HttpConnectorSpec] = None,
-        **kwargs: Any,
-    ):
-        super().__init__(id=id, name=name or id, node_type=NodeType.SERVICE_TASK, lane=lane, **kwargs)
-        self.delegate_class = delegate_class
-        self.http_connector = http_connector
-
-    def to_dict(self) -> Dict[str, Any]:
-        base = super().to_dict()
-        base["delegate_class"] = self.delegate_class
-        base["http_connector"] = self.http_connector.to_dict() if self.http_connector else None
-        return base
-
-
-@dataclass
+@dataclass(kw_only=True)
 class ScriptTaskNode(FlowNode):
-    script_format: str = "python"
-    script: str = ""
+    """Standard BPMN script task data only (``scriptFormat`` attribute and ``<bpmn:script>`` text)."""
 
-    def __init__(
-        self,
-        id: str,
-        name: str = "",
-        lane: Optional[str] = None,
-        script_format: str = "python",
-        script: str = "",
-        **kwargs: Any,
-    ):
-        super().__init__(id=id, name=name or id, node_type=NodeType.SCRIPT_TASK, lane=lane, **kwargs)
-        self.script_format = script_format
-        self.script = script
+    node_type: NodeType = NodeType.SCRIPT_TASK
+    bpmn_type: str = "scriptTask"
+    script_format: Optional[str] = None
+    script: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         base = super().to_dict()
-        base["script_format"] = self.script_format
-        base["script"] = self.script
+        base.update({"script_format": self.script_format, "script": self.script})
         return base
 
 
-@dataclass
-class ManualTaskNode(FlowNode):
-    def __init__(self, id: str, name: str = "", lane: Optional[str] = None, **kwargs: Any):
-        super().__init__(id=id, name=name or id, node_type=NodeType.MANUAL_TASK, lane=lane, **kwargs)
-
-
-@dataclass
-class BusinessRuleTaskNode(FlowNode):
-    """Represents a BPMN BusinessRuleTask (extensible hook for future DMN integration)."""
-    decision_ref: Optional[str] = None
-    result_variable: Optional[str] = None
-    map_decision_result: str = "singleEntry"
-
-    def __init__(
-        self,
-        id: str,
-        name: str = "",
-        lane: Optional[str] = None,
-        decision_ref: Optional[str] = None,
-        result_variable: Optional[str] = None,
-        map_decision_result: str = "singleEntry",
-        **kwargs: Any,
-    ):
-        super().__init__(id=id, name=name or id, node_type=NodeType.BUSINESS_RULE_TASK, lane=lane, **kwargs)
-        self.decision_ref = decision_ref
-        self.result_variable = result_variable
-        self.map_decision_result = map_decision_result
-
-    def to_dict(self) -> Dict[str, Any]:
-        base = super().to_dict()
-        base.update(
-            {
-                "decision_ref": self.decision_ref,
-                "result_variable": self.result_variable,
-                "map_decision_result": self.map_decision_result,
-                "dmn_mode": "mock_stub",
-            }
-        )
-        return base
-
-
-@dataclass
+@dataclass(kw_only=True)
 class CallActivityNode(FlowNode):
-    called_element: str = ""
-    in_mappings: List[VariableMappingSpec] = field(default_factory=list)
-    out_mappings: List[VariableMappingSpec] = field(default_factory=list)
-
-    def __init__(
-        self,
-        id: str,
-        name: str = "",
-        lane: Optional[str] = None,
-        called_element: str = "",
-        in_mappings: Optional[List[VariableMappingSpec]] = None,
-        out_mappings: Optional[List[VariableMappingSpec]] = None,
-        **kwargs: Any,
-    ):
-        super().__init__(id=id, name=name or id, node_type=NodeType.CALL_ACTIVITY, lane=lane, **kwargs)
-        self.called_element = called_element
-        self.in_mappings = in_mappings or []
-        self.out_mappings = out_mappings or []
+    node_type: NodeType = NodeType.CALL_ACTIVITY
+    bpmn_type: str = "callActivity"
+    called_element: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         base = super().to_dict()
-        base.update(
-            {
-                "called_element": self.called_element,
-                "in_mappings": [m.to_dict() for m in self.in_mappings],
-                "out_mappings": [m.to_dict() for m in self.out_mappings],
-            }
-        )
+        base["called_element"] = self.called_element
         return base
 
 
-@dataclass
+@dataclass(kw_only=True)
 class GatewayNode(FlowNode):
-    default_flow_id: Optional[str] = None
-
-    def __init__(
-        self,
-        id: str,
-        name: str = "",
-        gateway_type: NodeType = NodeType.EXCLUSIVE_GATEWAY,
-        lane: Optional[str] = None,
-        default_flow_id: Optional[str] = None,
-        **kwargs: Any,
-    ):
-        super().__init__(id=id, name=name or id, node_type=gateway_type, lane=lane, **kwargs)
-        self.default_flow_id = default_flow_id
-
     @property
     def direction(self) -> GatewayDirection:
+        """Derived from the number of incoming and outgoing sequence flows."""
         in_count = len(self.incoming_flows)
         out_count = len(self.outgoing_flows)
         if in_count <= 1 and out_count > 1:
@@ -328,9 +136,20 @@ class GatewayNode(FlowNode):
 
     def to_dict(self) -> Dict[str, Any]:
         base = super().to_dict()
-        base["default_flow_id"] = self.default_flow_id
         base["direction"] = self.direction.value
         return base
+
+
+@dataclass
+class Condition:
+    """A ``<bpmn:conditionExpression>`` exactly as written in the XML."""
+
+    text: str
+    language: Optional[str] = None  # the "language" attribute
+    xsi_type: Optional[str] = None  # the "xsi:type" attribute
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"text": self.text, "language": self.language, "xsi_type": self.xsi_type}
 
 
 @dataclass
@@ -338,9 +157,11 @@ class SequenceFlowEdge:
     id: str
     source_ref: str
     target_ref: str
-    name: str = ""
-    condition_expression: Optional[str] = None
-    is_default: bool = False
+    name: Optional[str] = None
+    condition: Optional[Condition] = None
+    is_default: bool = False  # derived: the source node's "default" attribute points to this flow
+    documentation: Optional[str] = None
+    extensions: Extensions = field(default_factory=Extensions)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -348,36 +169,66 @@ class SequenceFlowEdge:
             "source_ref": self.source_ref,
             "target_ref": self.target_ref,
             "name": self.name,
-            "condition_expression": self.condition_expression,
+            "condition": self.condition.to_dict() if self.condition else None,
             "is_default": self.is_default,
+            "documentation": self.documentation,
+            "extensions": self.extensions.to_dict(),
         }
 
 
 @dataclass
-class LaneModel:
+class Lane:
     id: str
-    name: str
-    node_ids: List[str] = field(default_factory=list)
+    name: Optional[str] = None
+    flow_node_refs: List[str] = field(default_factory=list)
+    child_lane_set: Optional["LaneSet"] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
             "id": self.id,
             "name": self.name,
-            "node_ids": list(self.node_ids),
+            "flow_node_refs": list(self.flow_node_refs),
+            "child_lane_set": self.child_lane_set.to_dict() if self.child_lane_set else None,
         }
 
 
 @dataclass
+class LaneSet:
+    id: Optional[str] = None
+    name: Optional[str] = None
+    lanes: List[Lane] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"id": self.id, "name": self.name, "lanes": [lane.to_dict() for lane in self.lanes]}
+
+
+@dataclass
+class Participant:
+    id: str
+    name: Optional[str] = None
+    process_ref: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"id": self.id, "name": self.name, "process_ref": self.process_ref}
+
+
+@dataclass
 class ProcessGraph:
-    """Complete Intermediate Model of a single BPMN Process."""
+    """One BPMN ``<process>`` as nodes and sequence flows indexed by their original BPMN ids."""
+
     process_id: str
-    name: str
-    is_executable: bool = True
-    participant_name: Optional[str] = None
-    lanes: List[LaneModel] = field(default_factory=list)
+    name: Optional[str] = None
+    is_executable: Optional[bool] = None  # None when the attribute is absent
+    participant: Optional[Participant] = None
+    lane_sets: List[LaneSet] = field(default_factory=list)
     nodes: Dict[str, FlowNode] = field(default_factory=dict)
     edges: Dict[str, SequenceFlowEdge] = field(default_factory=dict)
-    warnings: List[Dict[str, str]] = field(default_factory=list)
+    documentation: Optional[str] = None
+    extensions: Extensions = field(default_factory=Extensions)
+
+    @property
+    def participant_name(self) -> Optional[str]:
+        return self.participant.name if self.participant else None
 
     @property
     def start_nodes(self) -> List[StartEventNode]:
@@ -386,6 +237,29 @@ class ProcessGraph:
     @property
     def end_nodes(self) -> List[EndEventNode]:
         return [n for n in self.nodes.values() if isinstance(n, EndEventNode)]
+
+    @property
+    def lanes(self) -> List[Lane]:
+        """Every lane of every lane set, nested lanes included (depth-first, parents first)."""
+        collected: List[Lane] = []
+
+        def visit(lane_set: LaneSet) -> None:
+            for lane in lane_set.lanes:
+                collected.append(lane)
+                if lane.child_lane_set:
+                    visit(lane.child_lane_set)
+
+        for lane_set in self.lane_sets:
+            visit(lane_set)
+        return collected
+
+    def lane_of(self, node_id: str) -> Optional[Lane]:
+        """The innermost lane that references the node, if any."""
+        found: Optional[Lane] = None
+        for lane in self.lanes:
+            if node_id in lane.flow_node_refs:
+                found = lane
+        return found
 
     def get_outgoing_edges(self, node_id: str) -> List[SequenceFlowEdge]:
         node = self.nodes.get(node_id)
@@ -404,12 +278,32 @@ class ProcessGraph:
             "process_id": self.process_id,
             "name": self.name,
             "is_executable": self.is_executable,
-            "participant_name": self.participant_name,
-            "lanes": [l.to_dict() for l in self.lanes],
+            "participant": self.participant.to_dict() if self.participant else None,
+            "lane_sets": [ls.to_dict() for ls in self.lane_sets],
             "start_nodes": [n.id for n in self.start_nodes],
             "end_nodes": [n.id for n in self.end_nodes],
             "nodes": {nid: node.to_dict() for nid, node in self.nodes.items()},
             "edges": {eid: edge.to_dict() for eid, edge in self.edges.items()},
-            "warnings": list(self.warnings),
+            "documentation": self.documentation,
+            "extensions": self.extensions.to_dict(),
         }
 
+
+@dataclass
+class BpmnDocument:
+    """A parsed ``<bpmn:definitions>``: every process it contains, none dropped."""
+
+    definitions_id: Optional[str] = None
+    name: Optional[str] = None
+    target_namespace: Optional[str] = None
+    processes: List[ProcessGraph] = field(default_factory=list)
+    extensions: Extensions = field(default_factory=Extensions)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "definitions_id": self.definitions_id,
+            "name": self.name,
+            "target_namespace": self.target_namespace,
+            "processes": [p.to_dict() for p in self.processes],
+            "extensions": self.extensions.to_dict(),
+        }
