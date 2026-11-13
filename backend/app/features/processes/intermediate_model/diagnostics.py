@@ -25,8 +25,7 @@ class Severity(str, Enum):
 
 
 class DiagnosticCode(str, Enum):
-    # Errors: no consistent IR can be built
-    INVALID_UPLOAD = "INVALID_UPLOAD"  # request rule: one .bpmn/.xml file per request
+    INVALID_UPLOAD = "INVALID_UPLOAD"
     XML_MALFORMED = "XML_MALFORMED"
     NOT_BPMN = "NOT_BPMN"
     NO_PROCESS = "NO_PROCESS"
@@ -34,13 +33,12 @@ class DiagnosticCode(str, Enum):
     DUPLICATE_ID = "DUPLICATE_ID"
     MISSING_REF_ATTRIBUTE = "MISSING_REF_ATTRIBUTE"
     INVALID_REFERENCE = "INVALID_REFERENCE"
-    NO_START_EVENT = "NO_START_EVENT"  # FlowRouby profile rule
-    NO_END_EVENT = "NO_END_EVENT"  # FlowRouby profile rule
-    # Warnings and info: imported, with limits
+    NO_START_EVENT = "NO_START_EVENT"
+    NO_END_EVENT = "NO_END_EVENT"
     UNSUPPORTED_ELEMENT = "UNSUPPORTED_ELEMENT"
     PRESERVED_NOT_ANALYZABLE = "PRESERVED_NOT_ANALYZABLE"
-    MULTIPLE_START_EVENTS = "MULTIPLE_START_EVENTS"  # FlowRouby profile rule
-    MULTIPLE_PROCESSES = "MULTIPLE_PROCESSES"  # FlowRouby profile rule
+    MULTIPLE_START_EVENTS = "MULTIPLE_START_EVENTS"
+    MULTIPLE_PROCESSES = "MULTIPLE_PROCESSES"
     DISCONNECTED_NODE = "DISCONNECTED_NODE"
     GATEWAY_WITHOUT_OUTGOING = "GATEWAY_WITHOUT_OUTGOING"
     XOR_FLOW_WITHOUT_CONDITION_OR_DEFAULT = "XOR_FLOW_WITHOUT_CONDITION_OR_DEFAULT"
@@ -53,10 +51,10 @@ class Diagnostic:
     code: DiagnosticCode
     message: str
     element_id: Optional[str] = None
-    element_type: Optional[str] = None  # original BPMN local tag name
+    element_type: Optional[str] = None
     process_id: Optional[str] = None
     blocks_analysis: bool = False
-    line: Optional[int] = None  # line of the element's start tag in the imported XML, when known
+    line: Optional[int] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {

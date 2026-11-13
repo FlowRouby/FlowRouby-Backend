@@ -21,8 +21,8 @@ from ..ast.nodes import (
 @dataclass
 class VariableSymbol:
     name: str
-    inferred_type: str  # "boolean", "number", "string", "any"
-    origin_kind: str    # "form_field", "external_input", "http_output", "decision_output", "computed_output"
+    inferred_type: str
+    origin_kind: str
     defined_in: List[str] = field(default_factory=list)
     used_in: List[str] = field(default_factory=list)
 
@@ -79,7 +79,6 @@ class FlowSpecSemanticAnalyzer:
         errors: List[Dict[str, Any]] = []
         warnings: List[Dict[str, Any]] = []
 
-        # Pass 1: Register all nodes and declared variables in Symbol Table
         for node in ast.all_nodes:
             if node.id in node_symbols:
                 errors.append(
@@ -117,7 +116,6 @@ class FlowSpecSemanticAnalyzer:
                         defined_in=node.id,
                     )
 
-        # Pass 2: Validate transitions, IO expressions, HTTP payloads, and Gateway conditions
         for node in ast.all_nodes:
             for target_id in node.transitions:
                 if target_id not in node_symbols:
@@ -297,7 +295,6 @@ class FlowSpecSemanticAnalyzer:
             if op in ("==", "!="):
                 lt = self._check_expr_type(expr.left, node_id, table, errors)
                 rt = self._check_expr_type(expr.right, node_id, table, errors)
-                # Update identifier type if compared against a typed literal
                 if isinstance(expr.left, IdentifierAST) and rt in ("boolean", "number", "string"):
                     sym = table.get(expr.left.name)
                     if sym and sym.inferred_type == "any":
@@ -360,7 +357,6 @@ class FlowSpecSemanticAnalyzer:
                         "defined_in": sym.defined_in,
                     }
                 )
-                # Also provide mock override in sample_payload if used in conditions
                 if sym.used_in:
                     sample_payload[sym.name] = self._sample_value_for(sym.name, sym.inferred_type)
 

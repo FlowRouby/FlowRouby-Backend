@@ -30,7 +30,7 @@ class ParallelRegionSpec:
     split_id: str
     join_id: str
     gateway_type: NodeType
-    branches: List[List[str]]  # Each branch is an ordered list of node IDs between split and join
+    branches: List[List[str]]
     region_nodes: Set[str] = field(default_factory=set)
 
 
@@ -102,7 +102,6 @@ class NFABuilder:
             internal_region_nodes.update(r.region_nodes)
             internal_region_nodes.add(r.join_id)
 
-        # Create entry/exit states for all non-internal nodes
         for node_id, node in graph.nodes.items():
             if node_id in internal_region_nodes and node_id not in region_by_split:
                 continue
@@ -125,28 +124,20 @@ class NFABuilder:
                     node.node_type == NodeType.PARALLEL_GATEWAY
                     and node.direction == GatewayDirection.CONVERGING
                 ):
-                    # Unmatched converging ParallelGateway (e.g. fed by an ExclusiveGateway -> Deadlock!)
-                    # Do NOT add an unconditional epsilon transition from in_state to out_state,
-                    # because an AND-Join cannot fire when only a single exclusive path reaches it.
                     nfa.add_state(f"deadlock_wait:{node_id}", node_id=node_id)
                     nfa.add_transition(in_state, EPSILON, f"deadlock_wait:{node_id}")
                 else:
-                    # ExclusiveGateway or pass-through gateway uses epsilon transition
                     nfa.add_transition(in_state, EPSILON, out_state)
             else:
-                # Standard task (user_task, service_task, script_task, manual_task, business_rule_task, call_activity)
                 nfa.add_transition(in_state, node_id, out_state)
 
-        # Connect edges outside internal parallel regions
         for edge in graph.edges.values():
             src = edge.source_ref
             tgt = edge.target_ref
 
             if src in region_by_split:
-                # Handled inside _build_flag_region
                 continue
             if src in internal_region_nodes:
-                # Determine if src is the join_id of a region
                 matching_regions = [r for r in regions if r.join_id == src]
                 if matching_regions:
                     nfa.add_transition(f"out:{src}", EPSILON, f"in:{tgt}")
@@ -178,7 +169,6 @@ class NFABuilder:
             if len(out_edges) < 2 or len(out_edges) > MAX_CONCURRENT_BRANCHES:
                 continue
 
-            # Trace each outgoing branch until it hits a converging gateway of the same type
             branches: List[List[str]] = []
             candidate_join_id: Optional[str] = None
             valid_region = True
@@ -205,7 +195,6 @@ class NFABuilder:
                             valid_region = False
                         break
                     if isinstance(curr_node, GatewayNode):
-                        # Nested gateways inside branch: fallback to general graph if complex
                         valid_region = False
                         break
                     branch_nodes.append(curr_id)
@@ -237,7 +226,6 @@ class NFABuilder:
                     )
                     matched_joins.add(candidate_join_id)
 
-        # Check for any converging ParallelGateway that was NOT matched with a valid ParallelGateway split
         for node in graph.nodes.values():
             if (
                 isinstance(node, GatewayNode)
@@ -275,7 +263,6 @@ class NFABuilder:
         if region.gateway_type == NodeType.PARALLEL_GATEWAY:
             target_masks = [tuple(1 for _ in range(k))]
         else:
-            # InclusiveGateway (OR-Split): any non-empty subset of branches (2^k - 1 masks)
             target_masks = [
                 mask for mask in product((0, 1), repeat=k) if any(mask)
             ]
@@ -291,8 +278,6 @@ class NFABuilder:
             }
         )
 
-        # For each target mask M, build the product state transitions over progress vectors
-        # Progress vector p = (p_0, ..., p_{k-1}) where p_i in 0..len(branch_i)
         branch_lengths = [len(b) for b in region.branches]
 
         for mask in target_masks:
@@ -330,8 +315,6 @@ class NFABuilder:
                         nfa.add_state(nxt_state, node_id=task_id)
                         nfa.add_transition(curr_state, task_id, nxt_state)
 
-            # Only when all active branches in the mask have completed (flags == mask)
-            # does the AND-Join / OR-Join synchronize and transition to join_in -> join_out
             nfa.add_transition(state_name(final_progress), EPSILON, join_in)
 
         nfa.add_transition(join_in, EPSILON, join_out)

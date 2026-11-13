@@ -38,15 +38,15 @@ class NodeType(str, Enum):
 class SupportLevel(str, Enum):
     """How far FlowRouby can take an imported element."""
 
-    ANALYZABLE = "analyzable"    # understood and usable by formal analysis
-    PRESERVED = "preserved"      # imported faithfully, but not analyzable yet
-    UNSUPPORTED = "unsupported"  # kept as an opaque node so the graph stays consistent
+    ANALYZABLE = "analyzable"
+    PRESERVED = "preserved"
+    UNSUPPORTED = "unsupported"
 
 
 class GatewayDirection(str, Enum):
-    DIVERGING = "diverging"    # Split (1 incoming, >1 outgoing)
-    CONVERGING = "converging"  # Join (>1 incoming, 1 outgoing)
-    MIXED = "mixed"            # >1 incoming and >1 outgoing
+    DIVERGING = "diverging"
+    CONVERGING = "converging"
+    MIXED = "mixed"
     PASS_THROUGH = "pass_through"
 
 
@@ -56,18 +56,16 @@ class FlowNode:
 
     id: str
     node_type: NodeType
-    bpmn_type: str  # original local tag name, e.g. "userTask"
+    bpmn_type: str
     name: Optional[str] = None
     support: SupportLevel = SupportLevel.ANALYZABLE
     documentation: Optional[str] = None
-    default_flow_id: Optional[str] = None  # BPMN "default" attribute (activities and gateways)
+    default_flow_id: Optional[str] = None
     extensions: Extensions = field(default_factory=Extensions)
-    # BPMN child elements FlowRouby does not interpret (event definitions, loop characteristics,
-    # io specifications, ...), kept as a generic tree so nothing is dropped.
     unrecognized: List[ExtensionElement] = field(default_factory=list)
-    incoming_flows: List[str] = field(default_factory=list)  # derived from sequence flows
-    outgoing_flows: List[str] = field(default_factory=list)  # derived from sequence flows
-    source_line: Optional[int] = None  # line of the start tag in the imported XML
+    incoming_flows: List[str] = field(default_factory=list)
+    outgoing_flows: List[str] = field(default_factory=list)
+    source_line: Optional[int] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -169,8 +167,8 @@ class Condition:
     """A ``<bpmn:conditionExpression>`` exactly as written in the XML."""
 
     text: str
-    language: Optional[str] = None  # the "language" attribute
-    xsi_type: Optional[str] = None  # the "xsi:type" attribute
+    language: Optional[str] = None
+    xsi_type: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {"text": self.text, "language": self.language, "xsi_type": self.xsi_type}
@@ -183,7 +181,7 @@ class SequenceFlowEdge:
     target_ref: str
     name: Optional[str] = None
     condition: Optional[Condition] = None
-    is_default: bool = False  # derived: the source node's "default" attribute points to this flow
+    is_default: bool = False
     documentation: Optional[str] = None
     extensions: Extensions = field(default_factory=Extensions)
     unrecognized: List[ExtensionElement] = field(default_factory=list)
@@ -249,7 +247,7 @@ class ProcessGraph:
 
     process_id: str
     name: Optional[str] = None
-    is_executable: Optional[bool] = None  # None when the attribute is absent
+    is_executable: Optional[bool] = None
     participant: Optional[Participant] = None
     lane_sets: List[LaneSet] = field(default_factory=list)
     nodes: Dict[str, FlowNode] = field(default_factory=dict)
@@ -334,8 +332,6 @@ class BpmnDocument:
     processes: List[ProcessGraph] = field(default_factory=list)
     participants: List[Participant] = field(default_factory=list)
     extensions: Extensions = field(default_factory=Extensions)
-    # Root-level elements that are neither processes nor collaborations (messages, item
-    # definitions, ...). BPMNDI layout data is deliberately not imported.
     unrecognized: List[ExtensionElement] = field(default_factory=list)
     source_line: Optional[int] = None
 

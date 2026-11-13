@@ -9,7 +9,6 @@ from typing import Dict, List, Optional
 
 
 class TokenType(str, Enum):
-    # Structural & Keywords
     PROCESS = "PROCESS"
     LANE = "LANE"
     START = "START"
@@ -24,7 +23,6 @@ class TokenType(str, Enum):
     PARALLEL_GATEWAY = "PARALLEL_GATEWAY"
     INCLUSIVE_GATEWAY = "INCLUSIVE_GATEWAY"
 
-    # Attributes & Subblocks
     FORM_FIELD = "FORM_FIELD"
     FORM_REF = "FORM_REF"
     DELEGATE_CLASS = "DELEGATE_CLASS"
@@ -39,42 +37,38 @@ class TokenType(str, Enum):
     HEADERS = "HEADERS"
     PAYLOAD = "PAYLOAD"
 
-    # Gateway branch keywords
     WHEN = "WHEN"
     DEFAULT = "DEFAULT"
     BRANCH = "BRANCH"
 
-    # Literals & Identifiers
     IDENTIFIER = "IDENTIFIER"
     STRING = "STRING"
     NUMBER = "NUMBER"
     BOOLEAN = "BOOLEAN"
 
-    # Punctuation & Operators
-    LBRACE = "LBRACE"          # {
-    RBRACE = "RBRACE"          # }
-    LPAREN = "LPAREN"          # (
-    RPAREN = "RPAREN"          # )
-    COLON = "COLON"            # :
-    SEMICOLON = "SEMICOLON"    # ;
-    COMMA = "COMMA"            # ,
-    ARROW = "ARROW"            # ->
-    LEFT_ARROW = "LEFT_ARROW"  # <-
+    LBRACE = "LBRACE"
+    RBRACE = "RBRACE"
+    LPAREN = "LPAREN"
+    RPAREN = "RPAREN"
+    COLON = "COLON"
+    SEMICOLON = "SEMICOLON"
+    COMMA = "COMMA"
+    ARROW = "ARROW"
+    LEFT_ARROW = "LEFT_ARROW"
 
-    # Logical, Relational & Arithmetic Operators
-    OP_EQ = "OP_EQ"            # ==
-    OP_NEQ = "OP_NEQ"          # !=
-    OP_LTE = "OP_LTE"          # <=
-    OP_GTE = "OP_GTE"          # >=
-    OP_LT = "OP_LT"            # <
-    OP_GT = "OP_GT"            # >
-    OP_AND = "OP_AND"          # && or 'and'
-    OP_OR = "OP_OR"            # || or 'or'
-    OP_NOT = "OP_NOT"          # ! or 'not'
-    OP_PLUS = "OP_PLUS"        # +
-    OP_MINUS = "OP_MINUS"      # -
-    OP_MUL = "OP_MUL"          # *
-    OP_DIV = "OP_DIV"          # /
+    OP_EQ = "OP_EQ"
+    OP_NEQ = "OP_NEQ"
+    OP_LTE = "OP_LTE"
+    OP_GTE = "OP_GTE"
+    OP_LT = "OP_LT"
+    OP_GT = "OP_GT"
+    OP_AND = "OP_AND"
+    OP_OR = "OP_OR"
+    OP_NOT = "OP_NOT"
+    OP_PLUS = "OP_PLUS"
+    OP_MINUS = "OP_MINUS"
+    OP_MUL = "OP_MUL"
+    OP_DIV = "OP_DIV"
 
     EOF = "EOF"
 
@@ -205,7 +199,6 @@ class FlowSpecLexer:
                 )
 
             if kind == "STRING":
-                # Strip quotes and unescape
                 unquoted = value[1:-1].replace('\\"', '"').replace("\\n", "\n").replace("\\\\", "\\")
                 tokens.append(Token(TokenType.STRING, unquoted, line_num, column))
             elif kind == "IDENTIFIER":

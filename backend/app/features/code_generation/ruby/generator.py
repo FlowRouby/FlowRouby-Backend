@@ -113,7 +113,6 @@ class RubyCodeGenerator:
         start_nodes = [n for n in all_nodes if n.kind == "start"]
         start_node_id = start_nodes[0].id if start_nodes else (all_nodes[0].id if all_nodes else "StartEvent_1")
 
-        # Count incoming transitions per node to identify converging gateways
         incoming_counts: Dict[str, int] = {n.id: 0 for n in all_nodes}
         for n in all_nodes:
             for t in n.transitions:
@@ -193,7 +192,6 @@ class RubyCodeGenerator:
             return "\n".join(lines)
 
         if isinstance(node, TaskNodeAST):
-            # 1. UserTask FormObject
             if node.kind == "user_task" and (node.form_fields or node.form_ref):
                 form_cls = f"{to_pascal_case(node.form_ref or node.id)}Form"
                 form_path = f"app/forms/{to_snake_case(node.form_ref or node.id)}_form.rb"
@@ -201,14 +199,12 @@ class RubyCodeGenerator:
                 lines.append(f"      form = Forms::{form_cls}.new(@context.slice({self._form_field_symbols(node)}))")
                 lines.append("      form.validate!")
 
-            # 2. ServiceTask HTTP Connector -> Sidekiq Job
             if node.http_connector:
                 job_cls = f"{to_pascal_case(node.id)}HttpJob"
                 job_path = f"app/jobs/{to_snake_case(node.id)}_http_job.rb"
                 sidekiq_jobs[job_path] = self._build_sidekiq_http_job_code(node, job_cls)
                 lines.append(f"      @context = Jobs::{job_cls}.new.perform(@context)")
 
-            # 3. ServiceTask Delegate Class -> Service Stub
             if node.delegate_class:
                 short_cls = node.delegate_class.split(".")[-1]
                 srv_cls = f"{to_pascal_case(short_cls)}Service"
@@ -221,7 +217,6 @@ class RubyCodeGenerator:
                 )
                 lines.append(f"      @context = Services::{srv_cls}.call(@context)")
 
-            # 4. BusinessRuleTask -> Decision Stub (extensible to DMN)
             if node.decision_ref:
                 dec_cls = f"{to_pascal_case(node.decision_ref)}DecisionService"
                 dec_path = f"app/services/decisions/{to_snake_case(node.decision_ref)}_decision_service.rb"
@@ -237,13 +232,11 @@ class RubyCodeGenerator:
                     f"      @context[:{res_var}] = Services::Decisions::{dec_cls}.evaluate(@context)"
                 )
 
-            # 5. CallActivity -> Subworkflow Invocation
             if node.called_element:
                 sub_wf_cls = f"{to_pascal_case(node.called_element)}Workflow"
                 lines.append(f"      sub_result = Workflows::{sub_wf_cls}.call(@context)")
                 lines.append("      @context.merge!(sub_result[:context]) if sub_result.is_a?(Hash) && sub_result[:context]")
 
-            # 6. Output mappings
             for mapping in node.io_mappings:
                 if mapping.direction == "output":
                     ruby_expr = self.expr_transpiler.transpile(mapping.expr, context_var="@context")
@@ -284,7 +277,6 @@ class RubyCodeGenerator:
             lines.append("      active_branches")
             return lines
 
-        # ExclusiveGateway (XOR)
         when_branches = [b for b in gw.branches if b.branch_kind == "when" and b.condition is not None]
         default_branches = [b for b in gw.branches if b.branch_kind != "when"]
         default_target = default_branches[0].target_id if default_branches else None
@@ -297,7 +289,7 @@ class RubyCodeGenerator:
             return lines
 
         for idx, b in enumerate(when_branches):
-            cond_rb = self.expr_transpiler.transpile(b.condition, context_var="@context")  # type: ignore[arg-type]
+            cond_rb = self.expr_transpiler.transpile(b.condition, context_var="@context")
             keyword = "if" if idx == 0 else "elsif"
             lines.append(f"      {keyword} {cond_rb}")
             lines.append(f"        [:{b.target_id}]")

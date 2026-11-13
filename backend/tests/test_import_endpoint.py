@@ -43,12 +43,12 @@ def by_id(items: List[Dict[str, Any]], item_id: str) -> Dict[str, Any]:
 
 
 SEQUENTIAL = definitions(
-    '  <bpmn:process id="P" name="Demo" isExecutable="true">',  # line 3
-    '    <bpmn:startEvent id="Start" name="Begin"/>',  # 4
-    '    <bpmn:task id="Task_A" name="Register request"/>',  # 5
-    '    <bpmn:endEvent id="End" name="Done"/>',  # 6
-    '    <bpmn:sequenceFlow id="f1" sourceRef="Start" targetRef="Task_A"/>',  # 7
-    '    <bpmn:sequenceFlow id="f2" sourceRef="Task_A" targetRef="End"/>',  # 8
+    '  <bpmn:process id="P" name="Demo" isExecutable="true">',
+    '    <bpmn:startEvent id="Start" name="Begin"/>',
+    '    <bpmn:task id="Task_A" name="Register request"/>',
+    '    <bpmn:endEvent id="End" name="Done"/>',
+    '    <bpmn:sequenceFlow id="f1" sourceRef="Start" targetRef="Task_A"/>',
+    '    <bpmn:sequenceFlow id="f2" sourceRef="Task_A" targetRef="End"/>',
     "  </bpmn:process>",
 )
 
@@ -58,7 +58,7 @@ def test_clean_sequential_process_is_imported_with_ids_names_and_flow_refs() -> 
     body = response.json()
 
     assert response.status_code == 200
-    assert set(body) == {"supported", "diagnostics", "document"}  # nothing was analyzed or generated
+    assert set(body) == {"supported", "diagnostics", "document"}
     assert body["supported"] is True and body["diagnostics"] == []
     document = body["document"]
     assert (document["definitionsId"], len(document["processes"])) == ("Defs", 1)
@@ -105,12 +105,12 @@ def test_xor_gateway_keeps_raw_condition_and_default_flow() -> None:
 
 def test_subprocess_is_imported_but_analysis_is_not_supported() -> None:
     xml = definitions(
-        '  <bpmn:process id="P">',  # 3
-        '    <bpmn:startEvent id="S"/>',  # 4
-        '    <bpmn:subProcess id="Sub" name="Nested">',  # 5
-        '      <bpmn:task id="Inner"/>',  # 6
-        "    </bpmn:subProcess>",  # 7
-        '    <bpmn:endEvent id="E"/>',  # 8
+        '  <bpmn:process id="P">',
+        '    <bpmn:startEvent id="S"/>',
+        '    <bpmn:subProcess id="Sub" name="Nested">',
+        '      <bpmn:task id="Inner"/>',
+        "    </bpmn:subProcess>",
+        '    <bpmn:endEvent id="E"/>',
         '    <bpmn:sequenceFlow id="f1" sourceRef="S" targetRef="Sub"/>',
         '    <bpmn:sequenceFlow id="f2" sourceRef="Sub" targetRef="E"/>',
         "  </bpmn:process>",
@@ -125,7 +125,7 @@ def test_subprocess_is_imported_but_analysis_is_not_supported() -> None:
     sub = by_id(body["document"]["processes"][0]["nodes"], "Sub")
     assert (sub["bpmnType"], sub["nodeType"], sub["support"], sub["name"]) == ("subProcess", "unsupported", "unsupported", "Nested")
     assert (sub["incoming"], sub["outgoing"]) == (["f1"], ["f2"])
-    assert [c["localName"] for c in sub["source"]["children"]] == ["task"]  # nested content is not lost
+    assert [c["localName"] for c in sub["source"]["children"]] == ["task"]
     assert sub["source"]["children"][0]["attributes"] == {"id": "Inner"}
 
 
@@ -251,7 +251,6 @@ def test_multiple_start_events_import_with_a_blocking_diagnostic() -> None:
     assert [n["id"] for n in body["document"]["processes"][0]["nodes"]] == ["S1", "S2", "E"]
 
 
-# --- errors -------------------------------------------------------------------------------------
 
 
 def test_malformed_xml_answers_422_with_the_error_line() -> None:
@@ -307,7 +306,6 @@ def test_missing_file_field_answers_the_fastapi_validation_error() -> None:
     assert response.status_code == 422 and isinstance(detail, list) and detail[0]["loc"] == ["body", "file"]
 
 
-# --- existing endpoints keep their behavior ---------------------------------------------------------
 
 
 def test_compile_still_runs_the_full_pipeline_and_still_refuses_blocked_diagrams() -> None:
@@ -324,7 +322,7 @@ def test_compile_still_runs_the_full_pipeline_and_still_refuses_blocked_diagrams
     assert blocked.json()["detail"]["message"] == "The BPMN document was imported but cannot be analyzed yet."
     assert [d["code"] for d in blocked.json()["detail"]["diagnostics"]] == ["UNSUPPORTED_ELEMENT"]
 
-    imported_only = post_import(blocked_xml)  # the same document is importable (and displayable) here
+    imported_only = post_import(blocked_xml)
     assert imported_only.status_code == 200 and imported_only.json()["supported"] is False
 
 

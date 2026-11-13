@@ -84,10 +84,6 @@ class FlowSpecParser:
         self._expect(TokenType.EOF)
         return expr
 
-    # ========================================================================
-    # Token stream helpers
-    # ========================================================================
-
     def _current(self) -> Token:
         return self.tokens[self.pos]
 
@@ -119,10 +115,6 @@ class FlowSpecParser:
             tok.column,
             tok.value,
         )
-
-    # ========================================================================
-    # Grammar Rules (Top-Down Recursive Descent)
-    # ========================================================================
 
     def _parse_program(self) -> ProcessAST:
         proc_tok = self._expect(TokenType.PROCESS)
@@ -478,10 +470,6 @@ class FlowSpecParser:
             line=gw_tok.line,
             column=gw_tok.column,
         )
-
-    # ========================================================================
-    # Expression Precedence Hierarchy (LL(1))
-    # ========================================================================
 
     def _parse_expr(self) -> ExprAST:
         return self._parse_logical_or()

@@ -6,10 +6,6 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Union
 
 
-# ============================================================================
-# Expression AST Nodes (Chomsky Type 2 recursive expressions)
-# ============================================================================
-
 @dataclass
 class ExprAST:
     """Base class for FlowSpec expressions."""
@@ -23,7 +19,7 @@ class ExprAST:
 @dataclass
 class LiteralAST(ExprAST):
     value: Union[int, float, str, bool] = ""
-    literal_type: str = "string"  # "number", "string", "boolean"
+    literal_type: str = "string"
 
     def to_dict(self) -> Dict[str, Any]:
         return {"kind": "Literal", "type": self.literal_type, "value": self.value}
@@ -65,14 +61,10 @@ class BinaryExprAST(ExprAST):
         }
 
 
-# ============================================================================
-# Task Attribute & Statement AST Nodes
-# ============================================================================
-
 @dataclass
 class FormFieldAST:
     name: str
-    field_type: str  # boolean, long, integer, string
+    field_type: str
     label: str = ""
     line: int = 0
     column: int = 0
@@ -105,7 +97,7 @@ class HttpConnectorAST:
 
 @dataclass
 class IOMappingAST:
-    direction: str  # "input" or "output"
+    direction: str
     target: str
     expr: ExprAST
     line: int = 0
@@ -121,7 +113,7 @@ class IOMappingAST:
 
 @dataclass
 class GatewayBranchAST:
-    branch_kind: str  # "when", "default", "branch"
+    branch_kind: str
     target_id: str
     condition: Optional[ExprAST] = None
     label: str = ""
@@ -137,15 +129,11 @@ class GatewayBranchAST:
         }
 
 
-# ============================================================================
-# Flow Node AST Declarations
-# ============================================================================
-
 @dataclass
 class NodeAST:
     id: str
     name: str
-    kind: str  # "start", "end", "user_task", "service_task", "script_task", "manual_task", "business_rule_task", "call_activity", "exclusive_gateway", "parallel_gateway", "inclusive_gateway"
+    kind: str
     lane: Optional[str] = None
     transitions: List[str] = field(default_factory=list)
     line: int = 0

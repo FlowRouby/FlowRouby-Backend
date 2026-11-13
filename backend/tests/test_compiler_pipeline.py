@@ -11,7 +11,6 @@ import sys
 import pytest
 from fastapi import UploadFile
 
-# Add backend directory to sys.path
 BACKEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if BACKEND_DIR not in sys.path:
     sys.path.insert(0, BACKEND_DIR)
@@ -42,7 +41,6 @@ def test_import_realizar_visita_tecnica_bpmn() -> None:
     assert len(graph.start_nodes) == 1
     assert len(graph.end_nodes) == 2
 
-    # Check UserTask with Camunda formData (visita: boolean)
     user_task = graph.nodes["Activity_1aczp5w"]
     assert user_task.node_type.value == "user_task"
     user_form_fields = camunda.form_fields(user_task.extensions)
@@ -50,7 +48,6 @@ def test_import_realizar_visita_tecnica_bpmn() -> None:
     assert user_form_fields[0].id == "visita"
     assert user_form_fields[0].field_type == "boolean"
 
-    # Check ServiceTask with HTTP Connector
     srv_task = graph.nodes["Activity_0lw92ym"]
     assert srv_task.node_type.value == "service_task"
     connector = camunda.http_connector(srv_task.extensions)
@@ -68,7 +65,6 @@ def test_import_and_formal_analysis_tec_failures_bpmn() -> None:
     assert graph.process_id == "tecFailures"
     assert len(graph.lanes) == 3
 
-    # Verify CallActivity and BusinessRuleTask stub extraction
     call_node = graph.nodes["Activity_193y6v1"]
     assert call_node.node_type.value == "call_activity"
     assert call_node.called_element == "realizarVisitaTecnica"
@@ -78,7 +74,6 @@ def test_import_and_formal_analysis_tec_failures_bpmn() -> None:
     assert camunda.decision_ref(brule_node.extensions) == "clasificarPresupuesto"
     assert camunda.result_variable(brule_node.extensions) == "valor"
 
-    # Run Formal Analysis (NFA with flag vectors -> DFA -> Regex)
     formal_service = FormalAnalysisService()
     report = formal_service.analyze(graph)
 
@@ -86,7 +81,6 @@ def test_import_and_formal_analysis_tec_failures_bpmn() -> None:
     assert len(report.unreachable_nodes) == 0
     assert len(report.deadlocks) == 0
     assert len(report.infinite_loops) == 0
-    # tecFailures has a valid payment retry loop and a parallel gateway block
     assert len(report.valid_loops) >= 1
     assert len(report.nfa_summary["flag_regions"]) == 1
     flag_region = report.nfa_summary["flag_regions"][0]
@@ -94,7 +88,6 @@ def test_import_and_formal_analysis_tec_failures_bpmn() -> None:
     assert flag_region["join_id"] == "Gateway_0423gd3"
     assert flag_region["target_masks"] == ["11"]
 
-    # Both interleavings of parallel tasks (Activity_1b7qy8d and Activity_066js8m) must be accepted by the DFA
     trace_order_1 = [
         "StartEvent_1",
         "Activity_1bsi5nb",
@@ -186,7 +179,6 @@ def test_fastapi_endpoints_compile_and_simulate() -> None:
     with open(VISITA_BPMN_PATH, "rb") as f:
         visita_bytes = f.read()
 
-    # 1. Test POST /api/v1/processes/compile with realizarVisitaTecnica.bpmn
     upload_compile = UploadFile(filename="realizarVisitaTecnica.bpmn", file=io.BytesIO(visita_bytes))
     data = compile_bpmn_process(file=upload_compile)
     assert data["metadata"]["process_id"] == "realizarVisitaTecnica"
@@ -201,7 +193,6 @@ def test_fastapi_endpoints_compile_and_simulate() -> None:
     assert "app/workflows/realizar_visita_tecnica_workflow.rb" in data["generated_ruby"]["files"]
     assert "app/jobs/activity_0lw92ym_http_job.rb" in data["generated_ruby"]["files"]
 
-    # 2. Test POST /api/v1/processes/simulate (when visita == false -> Falla no atendida)
     upload_sim_false = UploadFile(filename="realizarVisitaTecnica.bpmn", file=io.BytesIO(visita_bytes))
     sim_resp_false = simulate_bpmn_process(
         file=upload_sim_false,
@@ -213,7 +204,6 @@ def test_fastapi_endpoints_compile_and_simulate() -> None:
     assert sim_false_data["accepted_by_dfa"] is True
     assert sim_false_data["visited_nodes"][-1] == "Event_1ggqko4"
 
-    # 3. Test POST /api/v1/processes/simulate (when visita == true -> HTTP Connector -> Reporte creado)
     upload_sim_true = UploadFile(filename="realizarVisitaTecnica.bpmn", file=io.BytesIO(visita_bytes))
     sim_resp_true = simulate_bpmn_process(
         file=upload_sim_true,

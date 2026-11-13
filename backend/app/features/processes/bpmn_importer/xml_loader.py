@@ -39,7 +39,7 @@ def line_of(element: Element) -> Optional[int]:
 def _current_line(parser: DefusedXMLParser) -> Optional[int]:
     try:
         return parser.parser.CurrentLineNumber
-    except Exception:  # the underlying parser is an implementation detail; never fail on it
+    except Exception:
         return None
 
 

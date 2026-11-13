@@ -103,7 +103,6 @@ def _node(node: FlowNode) -> Dict[str, Any]:
         "extensions": _extensions(node.extensions),
         "unrecognized": _generic_list(node.unrecognized),
     }
-    # Standard BPMN fields that only exist for some element kinds.
     if isinstance(node, ScriptTaskNode):
         body["scriptFormat"] = node.script_format
         body["script"] = node.script
@@ -135,7 +134,6 @@ def _flow(edge: SequenceFlowEdge) -> Dict[str, Any]:
 
 
 def _extensions(extensions: Extensions) -> Dict[str, Any]:
-    # Attribute keys are data from the XML ("{namespaceUri}localName"); they are not renamed.
     return {"attributes": dict(extensions.attributes), "elements": _generic_list(extensions.elements)}
 
 

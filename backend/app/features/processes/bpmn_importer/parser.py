@@ -50,7 +50,6 @@ _GATEWAY_TYPES: Dict[str, NodeType] = {
     "parallelGateway": NodeType.PARALLEL_GATEWAY,
     "inclusiveGateway": NodeType.INCLUSIVE_GATEWAY,
 }
-# Flow nodes whose semantics FlowRouby does not model yet.
 _UNSUPPORTED_FLOW_NODES = {
     "intermediateCatchEvent",
     "intermediateThrowEvent",
@@ -62,7 +61,6 @@ _UNSUPPORTED_FLOW_NODES = {
     "complexGateway",
 }
 _LOOP_CHARACTERISTICS = {"multiInstanceLoopCharacteristics", "standardLoopCharacteristics"}
-# Event definitions that change how control flow ends or diverts, so analysis would misread them.
 _BLOCKING_EVENT_DEFINITIONS = {
     "terminateEventDefinition",
     "errorEventDefinition",
@@ -70,7 +68,6 @@ _BLOCKING_EVENT_DEFINITIONS = {
     "cancelEventDefinition",
     "compensateEventDefinition",
 }
-# Children consumed by every node parser; incoming/outgoing are re-derived from sequence flows.
 _COMMON_NODE_CHILDREN = {"documentation", "extensionElements", "incoming", "outgoing"}
 
 
@@ -300,7 +297,7 @@ def _parse_node(element: Element, local: str, ctx: _Collector, process_id: str) 
                 process_id,
                 line=line_of(element),
             )
-    else:  # pragma: no cover - callers only pass tags handled above
+    else:
         raise ValueError(f"Unexpected flow node tag '{local}'")
 
     for child in element:

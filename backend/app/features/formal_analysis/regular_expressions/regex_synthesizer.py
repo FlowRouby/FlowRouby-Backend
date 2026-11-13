@@ -20,7 +20,6 @@ class RegexSynthesizer:
         gnfa_accept = "__GNFA_ACCEPT__"
 
         states = [gnfa_start] + list(dfa.states) + [gnfa_accept]
-        # matrix[u][v] holds the regex label from u to v
         matrix: Dict[str, Dict[str, str]] = {u: {} for u in states}
 
         matrix[gnfa_start][dfa.start_state] = "ε"
@@ -34,7 +33,6 @@ class RegexSynthesizer:
                 else:
                     matrix[u][v] = sym
 
-        # Eliminate all original DFA states one by one
         for k in list(dfa.states):
             loop_k = matrix[k].pop(k, None)
             star_k = self._star(loop_k) if loop_k else ""

@@ -25,7 +25,6 @@ from ...processes.intermediate_model.models import (
 )
 from . import camunda_extensions as camunda
 
-# Generic BPMN tasks are emitted with the same DSL keyword as service tasks, as they always were.
 _SERVICE_LIKE = {NodeType.TASK, NodeType.SERVICE_TASK, NodeType.SEND_TASK, NodeType.RECEIVE_TASK}
 _DSL_KEYWORDS: Dict[NodeType, str] = {node_type: "service_task" for node_type in _SERVICE_LIKE}
 
@@ -52,7 +51,6 @@ class FlowSpecEmitter:
                             lines.append(f"    {nline}")
                 lines.append("  }")
 
-            # Emit any nodes that were not listed inside a lane
             for nid, node in graph.nodes.items():
                 if nid not in emitted_ids:
                     for nline in self._emit_node(graph, node):
@@ -94,7 +92,7 @@ class FlowSpecEmitter:
             return [f"end {node.id} {display_name};"]
 
         if isinstance(node, GatewayNode):
-            gw_keyword = node.node_type.value  # exclusive_gateway, parallel_gateway, inclusive_gateway
+            gw_keyword = node.node_type.value
             lines = [f"{gw_keyword} {node.id} {display_name} {{"]
             default_ids = self._default_edge_ids(node, out_edges)
             for edge in out_edges:
@@ -108,7 +106,6 @@ class FlowSpecEmitter:
             lines.append("}")
             return lines
 
-        # Task nodes
         task_keyword = _DSL_KEYWORDS.get(node.node_type, node.node_type.value)
         lines = [f"{task_keyword} {node.id} {display_name} {{"]
 
@@ -163,7 +160,6 @@ class FlowSpecEmitter:
             if script:
                 lines.append(f"  script {self._quote(script)};")
 
-        # Direct input/output parameters on node
         in_params, out_params = camunda.input_output_parameters(node.extensions)
         for k, v in in_params.items():
             if v:

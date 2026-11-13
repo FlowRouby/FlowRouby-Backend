@@ -27,7 +27,7 @@ class FormalAnalysisReport:
 
     def to_dict(self) -> Dict[str, Any]:
         return {
-            "chomsky_classification": "Type-3 (Regular Language over Activity Traces)",
+            "chomsky_classification": "Type-3",
             "is_valid_workflow": self.is_valid_workflow,
             "regular_expression": self.regular_expression,
             "nfa_state_count": len(self.nfa_summary.get("states", [])),
@@ -57,17 +57,13 @@ class FormalAnalysisService:
         regex = self.regex_synthesizer.synthesize(dfa)
         acyclic_paths = self.regex_synthesizer.enumerate_acyclic_paths(dfa)
 
-        # 1. Detect unreachable BPMN nodes (Dead Nodes)
         unreachable_nodes = self._find_unreachable_nodes(graph, dfa)
 
-        # 2. Detect Gateway Deadlocks and states that cannot reach any accepting EndEvent
         deadlocks = list(nfa.structural_issues)
         states_reaching_accept = self._find_states_reaching_accept(dfa)
 
-        # 3. Analyze cycles (Tarjan's Strongly Connected Components on DFA)
         infinite_loops, valid_loops = self._analyze_cycles(dfa, states_reaching_accept)
 
-        # Check if any non-accepting DFA state has 0 outgoing transitions (Deadlock state)
         for state in dfa.states:
             if state not in dfa.accept_states and not dfa.transitions.get(state):
                 subset_info = dfa.state_subsets.get(state, [])
@@ -111,7 +107,6 @@ class FormalAnalysisService:
                 if edge.target_ref not in reachable_in_graph:
                     queue.append(edge.target_ref)
 
-        # Also check which task/event symbols actually appear in reachable DFA transitions
         used_symbols: Set[str] = set()
         for trans in dfa.transitions.values():
             used_symbols.update(trans.keys())
@@ -188,7 +183,6 @@ class FormalAnalysisService:
         for scc in sccs:
             has_self_loop = len(scc) == 1 and scc[0] in dfa.transitions.get(scc[0], {}).values()
             if len(scc) > 1 or has_self_loop:
-                # Collect involved symbols in this cycle
                 scc_set = set(scc)
                 cycle_symbols: List[str] = []
                 for s in scc:

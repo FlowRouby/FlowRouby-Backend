@@ -63,13 +63,11 @@ class DFABuilder:
             if any(s in nfa.accept_states for s in current_subset):
                 dfa.accept_states.add(dfa_state_name)
 
-            # Map BPMN node IDs to the DFA states that represent them
             for node_id, nfa_states in nfa.node_to_states.items():
                 if current_subset.intersection(nfa_states):
                     dfa.node_to_dfa_states.setdefault(node_id, set()).add(dfa_state_name)
 
             for symbol in alphabet:
-                # move(current_subset, symbol)
                 moved: Set[str] = set()
                 for nfa_state in current_subset:
                     targets = nfa.transitions.get(nfa_state, {}).get(symbol, set())

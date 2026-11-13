@@ -105,7 +105,6 @@ def one_process(xml: str):
     return result.process
 
 
-# --- supported structures -------------------------------------------------------------------
 
 
 def test_sequential_process_keeps_ids_names_and_connections() -> None:
@@ -272,7 +271,6 @@ def test_lanes_including_child_lane_sets_are_preserved() -> None:
     assert graph.lane_of("T").id == "L1a" and graph.lane_of("S").id == "L1" and graph.lane_of("E") is None
 
 
-# --- namespaces ------------------------------------------------------------------------------
 
 
 def test_default_namespace_and_custom_prefix_import_the_same_process() -> None:
@@ -303,7 +301,6 @@ def test_root_in_another_namespace_is_not_bpmn() -> None:
     assert codes(imported("<html><body/></html>")) == ["NOT_BPMN"]
 
 
-# --- unsupported and ignored content -----------------------------------------------------------
 
 
 def test_unsupported_element_is_reported_and_kept_without_breaking_the_graph() -> None:
@@ -376,7 +373,6 @@ def test_loop_characteristics_block_analysis_but_keep_the_task() -> None:
     assert [(d.element_id, d.blocks_analysis) for d in result.diagnostics if d.element_type == "multiInstanceLoopCharacteristics"] == [("T", True)]
 
 
-# --- extensions ----------------------------------------------------------------------------------
 
 
 def test_extensions_are_keyed_by_namespace_uri_not_by_prefix() -> None:
@@ -400,7 +396,6 @@ def test_extensions_are_keyed_by_namespace_uri_not_by_prefix() -> None:
     custom = task.extensions.find("urn:vendor", "custom")
     assert custom.attributes == {"level": "3"} and custom.text == "payload"
     assert [c.local_name for c in custom.children] == ["inner"]
-    # The adapter interprets Camunda data from the same generic tree.
     assert camunda.form_ref(task.extensions) == "k1"
     fields = camunda.form_fields(task.extensions)
     assert [(f.id, f.field_type, f.label) for f in fields] == [("visita", "boolean", "Done?")]
@@ -448,7 +443,6 @@ def test_camunda_adapter_reads_connector_mappings_and_parameters() -> None:
     ]
 
 
-# --- errors ----------------------------------------------------------------------------------------
 
 
 def test_malformed_xml_is_reported_as_an_error() -> None:
@@ -594,7 +588,6 @@ def test_structural_warnings_do_not_block_analysis() -> None:
     assert all(d.severity is Severity.WARNING and not d.blocks_analysis for d in result.diagnostics)
 
 
-# --- service rules and the compile pipeline ------------------------------------------------------
 
 
 def test_service_rejects_wrong_file_count_and_extension() -> None:
@@ -648,7 +641,7 @@ def test_compile_pipeline_still_generates_flowspec_and_ruby_from_camunda_extensi
     assert "http_connector {" in code and 'url: "http://localhost:9095/tickets";' in code
     assert 'payload: { "TicketId": TicketId };' in code
     assert "when (visita == true) -> Update;" in code
-    assert "default -> Skipped;" in code  # emitter convention for a single unconditional branch
+    assert "default -> Skipped;" in code
     assert data["metadata"]["lanes"] == ["Technician"]
     assert data["validation"]["valid"] is True
     assert [d["code"] for d in data["validation"]["diagnostics"]] == ["XOR_FLOW_WITHOUT_CONDITION_OR_DEFAULT"]
@@ -687,17 +680,16 @@ def test_compile_refuses_to_analyze_a_process_that_was_not_fully_understood(
     assert [d["code"] for d in caught.value.detail["diagnostics"]] == expected_codes
 
 
-# --- source lines --------------------------------------------------------------------------------
 
 
 def numbered_document(*process_lines: str) -> str:
     """A prefixed document whose process children start on line 4 (one element per line)."""
     return "\n".join(
         [
-            '<?xml version="1.0" encoding="UTF-8"?>',  # line 1
-            f'<bpmn:definitions xmlns:bpmn="{BPMN_NS}" id="Defs">',  # line 2
-            '  <bpmn:process id="P">',  # line 3
-            *process_lines,  # line 4 onwards
+            '<?xml version="1.0" encoding="UTF-8"?>',
+            f'<bpmn:definitions xmlns:bpmn="{BPMN_NS}" id="Defs">',
+            '  <bpmn:process id="P">',
+            *process_lines,
             "  </bpmn:process>",
             "</bpmn:definitions>",
         ]
@@ -707,9 +699,9 @@ def numbered_document(*process_lines: str) -> str:
 def test_dangling_reference_diagnostic_points_at_the_sequence_flow_line() -> None:
     result = imported(
         numbered_document(
-            '    <bpmn:startEvent id="S"/>',  # 4
-            '    <bpmn:endEvent id="E"/>',  # 5
-            '    <bpmn:sequenceFlow id="f1" sourceRef="S" targetRef="Ghost"/>',  # 6
+            '    <bpmn:startEvent id="S"/>',
+            '    <bpmn:endEvent id="E"/>',
+            '    <bpmn:sequenceFlow id="f1" sourceRef="S" targetRef="Ghost"/>',
         )
     )
     assert [(d.code.value, d.element_id, d.line) for d in result.errors] == [("INVALID_REFERENCE", "f1", 6)]
@@ -719,14 +711,14 @@ def test_dangling_reference_diagnostic_points_at_the_sequence_flow_line() -> Non
 def test_unsupported_element_diagnostic_points_at_its_start_tag_line() -> None:
     result = imported(
         numbered_document(
-            '    <bpmn:startEvent id="S"/>',  # 4
-            "",  # 5
-            '    <bpmn:subProcess id="Sub" name="Nested">',  # 6
-            '      <bpmn:task id="Inner"/>',  # 7
-            "    </bpmn:subProcess>",  # 8
-            '    <bpmn:endEvent id="E"/>',  # 9
-            '    <bpmn:sequenceFlow id="f1" sourceRef="S" targetRef="Sub"/>',  # 10
-            '    <bpmn:sequenceFlow id="f2" sourceRef="Sub" targetRef="E"/>',  # 11
+            '    <bpmn:startEvent id="S"/>',
+            "",
+            '    <bpmn:subProcess id="Sub" name="Nested">',
+            '      <bpmn:task id="Inner"/>',
+            "    </bpmn:subProcess>",
+            '    <bpmn:endEvent id="E"/>',
+            '    <bpmn:sequenceFlow id="f1" sourceRef="S" targetRef="Sub"/>',
+            '    <bpmn:sequenceFlow id="f2" sourceRef="Sub" targetRef="E"/>',
         )
     )
     unsupported = [d for d in result.diagnostics if d.code is DiagnosticCode.UNSUPPORTED_ELEMENT]
@@ -736,7 +728,7 @@ def test_unsupported_element_diagnostic_points_at_its_start_tag_line() -> None:
 
 
 def test_malformed_xml_diagnostic_uses_the_parse_error_line() -> None:
-    result = imported("<definitions>\n<process>\n</definitions>")  # closing tag mismatch on line 3
+    result = imported("<definitions>\n<process>\n</definitions>")
     assert [(d.code.value, d.line) for d in result.diagnostics] == [("XML_MALFORMED", 3)]
 
 
@@ -748,10 +740,10 @@ def test_dtd_rejection_reports_the_line_of_the_declaration() -> None:
 def test_duplicate_id_diagnostic_points_at_the_second_occurrence() -> None:
     result = imported(
         numbered_document(
-            '    <bpmn:startEvent id="S"/>',  # 4
-            '    <bpmn:task id="T"/>',  # 5
-            '    <bpmn:task id="T"/>',  # 6
-            '    <bpmn:endEvent id="E"/>',  # 7
+            '    <bpmn:startEvent id="S"/>',
+            '    <bpmn:task id="T"/>',
+            '    <bpmn:task id="T"/>',
+            '    <bpmn:endEvent id="E"/>',
         )
     )
     assert [(d.code.value, d.element_id, d.line) for d in result.errors] == [("DUPLICATE_ID", "T", 6)]
@@ -763,11 +755,11 @@ def test_profile_and_structure_diagnostics_carry_lines_too() -> None:
 
     two_starts = imported(
         numbered_document(
-            '    <bpmn:startEvent id="S1"/>',  # 4
-            '    <bpmn:startEvent id="S2"/>',  # 5
-            '    <bpmn:endEvent id="E"/>',  # 6
-            '    <bpmn:sequenceFlow id="f1" sourceRef="S1" targetRef="E"/>',  # 7
-            '    <bpmn:sequenceFlow id="f2" sourceRef="S2" targetRef="E"/>',  # 8
+            '    <bpmn:startEvent id="S1"/>',
+            '    <bpmn:startEvent id="S2"/>',
+            '    <bpmn:endEvent id="E"/>',
+            '    <bpmn:sequenceFlow id="f1" sourceRef="S1" targetRef="E"/>',
+            '    <bpmn:sequenceFlow id="f2" sourceRef="S2" targetRef="E"/>',
         )
     )
     assert [(d.code.value, d.line) for d in two_starts.analysis_blockers] == [("MULTIPLE_START_EVENTS", 5)]

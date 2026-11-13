@@ -77,7 +77,6 @@ class FlowSpecSimulator:
         step_logs: List[Dict[str, Any]] = []
         http_requests: List[Dict[str, Any]] = []
 
-        # Queue of active node IDs; track arrival counts at converging parallel gateways
         ready_queue: List[str] = [start_nodes[0].id]
         join_arrivals: Dict[str, int] = {}
         steps = 0
@@ -120,18 +119,15 @@ class FlowSpecSimulator:
                 ready_queue.extend(selected_targets)
                 continue
 
-            # Activity / Start node
             activity_trace_for_dfa.append(node.id)
             changes: Dict[str, Any] = {}
 
             if isinstance(node, TaskNodeAST):
-                # 1. Form fields (populate defaults if missing from context)
                 for ff in node.form_fields:
                     if ff.name not in context:
                         context[ff.name] = self._default_for_type(ff.field_type)
                         changes[ff.name] = context[ff.name]
 
-                # 2. HTTP Connector simulation
                 if node.http_connector:
                     hc = node.http_connector
                     rendered_payload = {
@@ -152,17 +148,14 @@ class FlowSpecSimulator:
                             context[hc.output_target] = mock_resp
                         changes[hc.output_target] = context[hc.output_target]
 
-                # 3. BusinessRuleTask (DMN mock stub)
                 if node.decision_ref and node.result_variable:
                     if node.result_variable not in context:
                         context[node.result_variable] = 100
                     changes[node.result_variable] = context[node.result_variable]
 
-                # 4. IO Mappings
                 for mapping in node.io_mappings:
                     val = self.eval_expr(mapping.expr, context)
                     if mapping.direction == "output":
-                        # Only overwrite if not explicitly overridden for loop break testing
                         context[mapping.target] = val
                         changes[mapping.target] = val
 
@@ -205,7 +198,6 @@ class FlowSpecSimulator:
         if gw.kind == "parallel_gateway":
             expected_in = incoming_counts.get(gw.id, 1)
             if expected_in > 1 and len(gw.branches) <= 1:
-                # Converging Parallel Gateway (AND-Join)
                 join_arrivals[gw.id] = join_arrivals.get(gw.id, 0) + 1
                 if join_arrivals[gw.id] < expected_in:
                     return []
@@ -227,7 +219,6 @@ class FlowSpecSimulator:
                 return [default_target]
             return matched
 
-        # Exclusive Gateway (XOR)
         default_target = None
         unconditional_targets: List[str] = []
         for b in gw.branches:
@@ -268,7 +259,6 @@ class FlowSpecSimulator:
                 return bool(left) and bool(right)
             if op == "||":
                 return bool(left) or bool(right)
-            # Numeric operations
             l_num = left if isinstance(left, (int, float)) and not isinstance(left, bool) else 0
             r_num = right if isinstance(right, (int, float)) and not isinstance(right, bool) else 0
             if op == "<":

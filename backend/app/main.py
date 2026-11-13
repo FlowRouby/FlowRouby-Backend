@@ -10,9 +10,8 @@ import starlette.routing
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
-# Compatibility shim for environments with Starlette >= 1.0 and FastAPI 0.115.x
 if not hasattr(FastAPI, "max_body_size"):
-    FastAPI.max_body_size = None  # type: ignore[attr-defined]
+    FastAPI.max_body_size = None
 
 if "on_startup" not in inspect.signature(starlette.routing.Router.__init__).parameters:
     _orig_router_init = starlette.routing.Router.__init__
@@ -20,7 +19,7 @@ if "on_startup" not in inspect.signature(starlette.routing.Router.__init__).para
     def _compat_router_init(self: Any, *args: Any, on_startup: Any = None, on_shutdown: Any = None, **kwargs: Any) -> None:
         _orig_router_init(self, *args, **kwargs)
 
-    starlette.routing.Router.__init__ = _compat_router_init  # type: ignore[method-assign]
+    starlette.routing.Router.__init__ = _compat_router_init
 
 from .features.code_generation.ruby.generator import RubyCodeGenerator
 from .features.flowspec.ast.emitter import FlowSpecEmitter
@@ -108,10 +107,8 @@ def compile_bpmn_process(
     xml_bytes = file.file.read()
     graph, diagnostics = _import_bpmn_or_422(xml_bytes, file.filename, 1)
 
-    # 1. Formal Analysis (Chomsky Type 3: ε-NFA -> DFA -> Regular Expression + Deadlock/Loop Detection)
     formal_report = formal_service.analyze(graph)
 
-    # 2. Emit Intermediate DSL (FlowSpec) & Parse into AST (Chomsky Type 2 CFG)
     flowspec_code = flowspec_emitter.emit(graph)
     try:
         process_ast = flowspec_parser.parse(flowspec_code)
@@ -126,10 +123,8 @@ def compile_bpmn_process(
             },
         ) from exc
 
-    # 3. Semantic Analysis (Symbol Table & Type Checking)
     semantic_result = semantic_analyzer.analyze(process_ast)
 
-    # 4. Ruby on Rails + Sidekiq Code Generation
     ruby_output = ruby_generator.generate(
         ast=process_ast,
         sample_payload=semantic_result.data_contract.get("sample_payload", {}),
@@ -155,7 +150,7 @@ def compile_bpmn_process(
         "data_contract": semantic_result.data_contract,
         "formal_analysis": formal_report.to_dict(),
         "flowspec": {
-            "chomsky_classification": "Type-2 (Context-Free Grammar LL(1))",
+            "chomsky_classification": "Type-2",
             "code": flowspec_code,
             "symbol_table": semantic_result.to_dict()["symbol_table"],
         },
@@ -203,7 +198,7 @@ def compile_flowspec_direct(request: FlowSpecCompileRequest) -> Dict[str, Any]:
         },
         "data_contract": semantic_result.data_contract,
         "flowspec": {
-            "chomsky_classification": "Type-2 (Context-Free Grammar LL(1))",
+            "chomsky_classification": "Type-2",
             "code": request.flowspec_code,
             "symbol_table": semantic_result.to_dict()["symbol_table"],
         },
