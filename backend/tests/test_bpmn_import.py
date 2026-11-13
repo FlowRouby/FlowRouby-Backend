@@ -640,7 +640,7 @@ def _upload(xml: str) -> UploadFile:
 
 
 def test_compile_pipeline_still_generates_flowspec_and_ruby_from_camunda_extensions() -> None:
-    data = compile_bpmn_process(files=[_upload(CAMUNDA_PIPELINE_BPMN)])
+    data = compile_bpmn_process(file=_upload(CAMUNDA_PIPELINE_BPMN))
 
     code = data["flowspec"]["code"]
     assert 'lane "Technician" {' in code
@@ -682,7 +682,7 @@ def test_compile_refuses_to_analyze_a_process_that_was_not_fully_understood(
     xml: str, expected_codes: List[str]
 ) -> None:
     with pytest.raises(HTTPException) as caught:
-        compile_bpmn_process(files=[_upload(xml)])
+        compile_bpmn_process(file=_upload(xml))
     assert caught.value.status_code == 422
     assert [d["code"] for d in caught.value.detail["diagnostics"]] == expected_codes
 

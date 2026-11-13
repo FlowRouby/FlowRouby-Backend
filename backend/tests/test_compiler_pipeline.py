@@ -188,7 +188,7 @@ def test_fastapi_endpoints_compile_and_simulate() -> None:
 
     # 1. Test POST /api/v1/processes/compile with realizarVisitaTecnica.bpmn
     upload_compile = UploadFile(filename="realizarVisitaTecnica.bpmn", file=io.BytesIO(visita_bytes))
-    data = compile_bpmn_process(files=[upload_compile])
+    data = compile_bpmn_process(file=upload_compile)
     assert data["metadata"]["process_id"] == "realizarVisitaTecnica"
     assert data["validation"]["valid"] is True
     assert "intermediate_model" not in data

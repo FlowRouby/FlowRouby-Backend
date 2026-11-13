@@ -3,7 +3,7 @@
 Contrato entre el backend (FastAPI) y el frontend (Angular + bpmn-js) para la importación de diagramas BPMN.
 Los ejemplos de este documento fueron obtenidos ejecutando la API real; no son ilustrativos.
 
-- Base URL local: `http://localhost:8000` (Swagger en `/docs`).
+- Base URL local: `http://localhost:6767` (Swagger en `/docs`).
 - Todas las claves de diagnóstico están en `camelCase`, y también toda la respuesta de `/import`. El resto de la respuesta de `compile` (`metadata`, `formal_analysis`, ...) conserva `snake_case`.
 - Los IDs de BPMN (`elementId`) son **los originales del XML**, los mismos que usa bpmn-js. Sirven para resaltar elementos en el canvas.
 
@@ -11,7 +11,7 @@ Los ejemplos de este documento fueron obtenidos ejecutando la API real; no son i
 
 | Método | Ruta | Entrada | Uso |
 |---|---|---|---|
-| POST | `/api/v1/processes/compile` | `multipart/form-data`, campo `files` (exactamente 1 archivo `.bpmn` o `.xml`) | Importa, analiza, emite FlowSpec y genera Ruby |
+| POST | `/api/v1/processes/compile` | `multipart/form-data`, campo `file` (exactamente 1 archivo `.bpmn` o `.xml`) | Importa, analiza, emite FlowSpec y genera Ruby |
 | POST | `/api/v1/processes/simulate` | `multipart/form-data`, campo `file` (`.bpmn`) **o** `flowspec_code`; opcional `input_data` (JSON string) | Simulación sin estado |
 | POST | `/api/v1/processes/import` | `multipart/form-data`, campo `file` (exactamente 1 archivo `.bpmn` o `.xml`) | **Solo importa**: devuelve el modelo y los diagnósticos, sin análisis, FlowSpec, Ruby ni persistencia |
 
@@ -379,7 +379,7 @@ Distingue la forma de `detail`:
 | Situación | Forma de `detail` |
 |---|---|
 | Archivo con extensión inválida o más de un archivo | objeto con `message` y `diagnostics` (código `INVALID_UPLOAD`) |
-| No se envió el campo `files` | lista de errores de validación de FastAPI: `[{ "type", "loc", "msg", "input" }]` |
+| No se envió el campo `file` | lista de errores de validación de FastAPI: `[{ "type", "loc", "msg", "input" }]` |
 | `input_data` no es un JSON objeto (simulate) | `{ "message": "..." }` |
 | Error de sintaxis FlowSpec generado | `{ "message", "line", "column", "flowspec_code" }` |
 

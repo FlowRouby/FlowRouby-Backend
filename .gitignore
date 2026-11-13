@@ -1,5 +1,5 @@
 /.agents
 /process_models
-/SpiffWorkflow
 *.pyc
 .atl/
+.venv/

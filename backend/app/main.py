@@ -101,13 +101,12 @@ def health_check() -> Dict[str, str]:
 
 @app.post("/api/v1/processes/compile")
 def compile_bpmn_process(
-    files: List[UploadFile] = File(..., description="Single .bpmn file to compile"),
+    file: UploadFile = File(..., description="Single .bpmn or .xml file to compile"),
 ) -> Dict[str, Any]:
     """Accepts a single .bpmn file, validates it, runs formal automata analysis,
     emits and compiles FlowSpec DSL, and returns the Ruby on Rails + Sidekiq templates."""
-    upload = files[0]
-    xml_bytes = upload.file.read() if len(files) == 1 else b""
-    graph, diagnostics = _import_bpmn_or_422(xml_bytes, upload.filename, len(files))
+    xml_bytes = file.file.read()
+    graph, diagnostics = _import_bpmn_or_422(xml_bytes, file.filename, 1)
 
     # 1. Formal Analysis (Chomsky Type 3: ε-NFA -> DFA -> Regular Expression + Deadlock/Loop Detection)
     formal_report = formal_service.analyze(graph)

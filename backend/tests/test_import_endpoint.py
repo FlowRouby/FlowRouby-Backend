@@ -311,7 +311,7 @@ def test_missing_file_field_answers_the_fastapi_validation_error() -> None:
 
 
 def test_compile_still_runs_the_full_pipeline_and_still_refuses_blocked_diagrams() -> None:
-    ok = client.post("/api/v1/processes/compile", files={"files": ("p.bpmn", SEQUENTIAL.encode(), "application/xml")})
+    ok = client.post("/api/v1/processes/compile", files={"file": ("p.bpmn", SEQUENTIAL.encode(), "application/xml")})
     assert ok.status_code == 200
     assert ok.json()["metadata"]["process_id"] == "P" and "formal_analysis" in ok.json()
 
@@ -319,7 +319,7 @@ def test_compile_still_runs_the_full_pipeline_and_still_refuses_blocked_diagrams
         '  <bpmn:process id="P"><bpmn:startEvent id="S"/><bpmn:subProcess id="Sub"/><bpmn:endEvent id="E"/>',
         '  <bpmn:sequenceFlow id="f1" sourceRef="S" targetRef="Sub"/><bpmn:sequenceFlow id="f2" sourceRef="Sub" targetRef="E"/></bpmn:process>',
     )
-    blocked = client.post("/api/v1/processes/compile", files={"files": ("p.bpmn", blocked_xml.encode(), "application/xml")})
+    blocked = client.post("/api/v1/processes/compile", files={"file": ("p.bpmn", blocked_xml.encode(), "application/xml")})
     assert blocked.status_code == 422
     assert blocked.json()["detail"]["message"] == "The BPMN document was imported but cannot be analyzed yet."
     assert [d["code"] for d in blocked.json()["detail"]["diagnostics"]] == ["UNSUPPORTED_ELEMENT"]

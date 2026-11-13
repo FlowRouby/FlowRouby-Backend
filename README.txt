@@ -19,12 +19,12 @@ Segundo, instala las dependencias del proyecto:
     pip install -r requirements.txt
 
 
-Tercero, levanta el servidor con uvicorn indicando el puerto que prefieras, por ejemplo el 8080:
+Tercero, levanta el servidor con uvicorn en el puerto 6767:
 
-    python -m uvicorn app.main:app --reload --port XXXX
+    python -m uvicorn app.main:app --reload --port 6767
 
 
-Cuarto, entra al Swagger desde tu navegador en la direccion http://localhost:XXXX/docs y veras todos los endpoints disponibles listos para probar.
+Cuarto, entra al Swagger desde tu navegador en la direccion http://localhost:6767/docs y veras todos los endpoints disponibles listos para probar.
 
 
 2. ENDPOINTS DISPONIBLES
@@ -35,7 +35,7 @@ POST /api/v1/processes/compile
 Compila un diagrama BPMN pasando por todas las etapas del compilador.
 
 Que requiere para la peticion:
-Recibe en el campo files un unico archivo .bpmn por peticion.
+Recibe en el campo file un unico archivo .bpmn por peticion.
 
 Que retorna:
 Retorna metadata y validation con los datos generales del proceso, sus carriles y el resultado de las validaciones estructurales y semanticas.
