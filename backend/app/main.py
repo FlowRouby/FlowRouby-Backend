@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import inspect
+import io
 import json
-from typing import Any, Dict, List, Optional, Tuple
+import zipfile
+from typing import Annotated, Any, Dict, List, Literal, Optional, Tuple
 
 import starlette.routing
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Query, Response, UploadFile
 from pydantic import BaseModel, Field
 
 if not hasattr(FastAPI, "max_body_size"):
@@ -21,7 +23,7 @@ if "on_startup" not in inspect.signature(starlette.routing.Router.__init__).para
 
     starlette.routing.Router.__init__ = _compat_router_init
 
-from .features.code_generation.ruby.generator import RubyCodeGenerator
+from .features.code_generation.ruby.generator import RubyCodeGenerator, to_snake_case
 from .features.flowspec.ast.emitter import FlowSpecEmitter
 from .features.flowspec.lexer.lexer import FlowSpecLexicalError
 from .features.flowspec.parser.parser import FlowSpecParser, FlowSpecSyntaxError
@@ -52,10 +54,6 @@ flowspec_parser = FlowSpecParser()
 semantic_analyzer = FlowSpecSemanticAnalyzer()
 ruby_generator = RubyCodeGenerator()
 simulator = FlowSpecSimulator()
-
-
-class FlowSpecCompileRequest(BaseModel):
-    flowspec_code: str = Field(..., description="Source code written in the FlowSpec intermediate DSL.")
 
 
 class FlowSpecSimulateRequest(BaseModel):
@@ -101,9 +99,14 @@ def health_check() -> Dict[str, str]:
 @app.post("/api/v1/processes/compile")
 def compile_bpmn_process(
     file: UploadFile = File(..., description="Single .bpmn or .xml file to compile"),
-) -> Dict[str, Any]:
+    format: Annotated[
+        Literal["json", "zip"],
+        Query(description="Response format: 'json' (default) or 'zip' (downloadable Rails project)"),
+    ] = "json",
+) -> Any:
     """Accepts a single .bpmn file, validates it, runs formal automata analysis,
-    emits and compiles FlowSpec DSL, and returns the Ruby on Rails + Sidekiq templates."""
+    emits and compiles FlowSpec DSL, and returns either the full compilation JSON
+    or a downloadable Ruby on Rails + Sidekiq project ZIP."""
     xml_bytes = file.file.read()
     graph, diagnostics = _import_bpmn_or_422(xml_bytes, file.filename, 1)
 
@@ -131,6 +134,18 @@ def compile_bpmn_process(
         acyclic_paths=formal_report.acyclic_paths,
     )
 
+    if format == "zip":
+        project_slug = f"{to_snake_case(graph.process_id)}_rails"
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+            for rel_path, content in ruby_output.to_dict()["files"].items():
+                archive.writestr(f"{project_slug}/{rel_path}", content)
+        return Response(
+            content=buffer.getvalue(),
+            media_type="application/zip",
+            headers={"Content-Disposition": f'attachment; filename="{project_slug}.zip"'},
+        )
+
     return {
         "metadata": {
             "process_id": graph.process_id,
@@ -152,54 +167,6 @@ def compile_bpmn_process(
         "flowspec": {
             "chomsky_classification": "Type-2",
             "code": flowspec_code,
-            "symbol_table": semantic_result.to_dict()["symbol_table"],
-        },
-        "generated_ruby": ruby_output.to_dict(),
-    }
-
-
-@app.post("/api/v1/flowspec/compile")
-def compile_flowspec_direct(request: FlowSpecCompileRequest) -> Dict[str, Any]:
-    """Compiles FlowSpec DSL code directly into an AST, runs semantic validation,
-    and generates Ruby on Rails + Sidekiq templates."""
-    try:
-        process_ast = flowspec_parser.parse(request.flowspec_code)
-    except (FlowSpecLexicalError, FlowSpecSyntaxError) as exc:
-        raise HTTPException(
-            status_code=422,
-            detail={"message": str(exc), "line": exc.line, "column": exc.column},
-        ) from exc
-
-    semantic_result = semantic_analyzer.analyze(process_ast)
-    if not semantic_result.valid:
-        raise HTTPException(
-            status_code=422,
-            detail={
-                "message": "FlowSpec semantic validation failed.",
-                "errors": semantic_result.errors,
-            },
-        )
-
-    ruby_output = ruby_generator.generate(
-        ast=process_ast,
-        sample_payload=semantic_result.data_contract.get("sample_payload", {}),
-    )
-
-    return {
-        "metadata": {
-            "process_id": process_ast.process_id,
-            "process_name": process_ast.name,
-            "lanes": [l.name for l in process_ast.lanes],
-            "node_count": len(process_ast.all_nodes),
-        },
-        "validation": {
-            "valid": semantic_result.valid,
-            "semantic_errors": semantic_result.errors,
-        },
-        "data_contract": semantic_result.data_contract,
-        "flowspec": {
-            "chomsky_classification": "Type-2",
-            "code": request.flowspec_code,
             "symbol_table": semantic_result.to_dict()["symbol_table"],
         },
         "generated_ruby": ruby_output.to_dict(),

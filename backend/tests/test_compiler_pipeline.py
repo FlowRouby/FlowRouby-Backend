@@ -24,7 +24,7 @@ from app.features.flowspec.semantic_analysis.simulator import FlowSpecSimulator
 from app.features.formal_analysis.services.analysis_service import FormalAnalysisService
 from app.features.flowspec.ast import camunda_extensions as camunda
 from app.features.processes.bpmn_importer import BpmnImporter
-from app.main import app, compile_bpmn_process, compile_flowspec_direct, simulate_bpmn_process
+from app.main import app, compile_bpmn_process, simulate_bpmn_process
 
 PROCESS_MODELS_DIR = os.path.abspath(os.path.join(BACKEND_DIR, "..", "process_models"))
 VISITA_BPMN_PATH = os.path.join(PROCESS_MODELS_DIR, "realizarVisitaTecnica.bpmn")
@@ -191,7 +191,8 @@ def test_fastapi_endpoints_compile_and_simulate() -> None:
     assert "state_subsets" in data["formal_analysis"]["dfa"]
     assert set(data["generated_ruby"].keys()) == {"framework", "files"}
     assert "app/workflows/realizar_visita_tecnica_workflow.rb" in data["generated_ruby"]["files"]
-    assert "app/jobs/activity_0lw92ym_http_job.rb" in data["generated_ruby"]["files"]
+    assert "app/forms/validar_visita_form.rb" in data["generated_ruby"]["files"]
+    assert "app/jobs/actualizar_estado_del_ticket_de_visita_en_fsm_http_job.rb" in data["generated_ruby"]["files"]
 
     upload_sim_false = UploadFile(filename="realizarVisitaTecnica.bpmn", file=io.BytesIO(visita_bytes))
     sim_resp_false = simulate_bpmn_process(

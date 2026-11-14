@@ -645,7 +645,7 @@ def test_compile_pipeline_still_generates_flowspec_and_ruby_from_camunda_extensi
     assert data["metadata"]["lanes"] == ["Technician"]
     assert data["validation"]["valid"] is True
     assert [d["code"] for d in data["validation"]["diagnostics"]] == ["XOR_FLOW_WITHOUT_CONDITION_OR_DEFAULT"]
-    assert "app/jobs/update_http_job.rb" in data["generated_ruby"]["files"]
+    assert "app/jobs/update_ticket_http_job.rb" in data["generated_ruby"]["files"]
 
 
 def test_simulation_runs_on_the_imported_process() -> None:

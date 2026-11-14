@@ -341,3 +341,53 @@ def test_simulate_still_refuses_blocked_diagrams_with_its_own_message() -> None:
 def test_openapi_lists_the_import_route_next_to_the_existing_ones() -> None:
     paths = client.get("/openapi.json").json()["paths"]
     assert {"/api/v1/processes/import", "/api/v1/processes/compile", "/api/v1/processes/simulate"} <= set(paths)
+
+
+def test_compile_includes_full_rails_scaffold_in_json() -> None:
+    res = client.post("/api/v1/processes/compile", files={"file": ("p.bpmn", SEQUENTIAL.encode(), "application/xml")})
+    assert res.status_code == 200
+    files = res.json()["generated_ruby"]["files"]
+    expected = {
+        "Gemfile",
+        "Rakefile",
+        "config.ru",
+        "README.md",
+        "config/application.rb",
+        "config/boot.rb",
+        "config/environment.rb",
+        "config/routes.rb",
+        "config/sidekiq.yml",
+        "config/initializers/sidekiq.rb",
+        "config/environments/development.rb",
+        "config/environments/production.rb",
+        "config/environments/test.rb",
+        "app/controllers/application_controller.rb",
+        "app/controllers/workflows_controller.rb",
+        "app/workflows/p_workflow.rb",
+        "spec/spec_helper.rb",
+        "spec/rails_helper.rb",
+        "spec/workflows/p_workflow_spec.rb",
+    }
+    assert expected <= set(files.keys())
+
+
+def test_compile_format_zip_returns_downloadable_rails_project() -> None:
+    import io
+    import zipfile
+
+    res = client.post(
+        "/api/v1/processes/compile?format=zip",
+        files={"file": ("p.bpmn", SEQUENTIAL.encode(), "application/xml")},
+    )
+    assert res.status_code == 200
+    assert res.headers["content-type"] == "application/zip"
+    assert 'filename="p_rails.zip"' in res.headers["content-disposition"]
+
+    with zipfile.ZipFile(io.BytesIO(res.content), "r") as zf:
+        names = set(zf.namelist())
+        assert "p_rails/Gemfile" in names
+        assert "p_rails/config/routes.rb" in names
+        assert "p_rails/app/controllers/workflows_controller.rb" in names
+        assert "p_rails/app/workflows/p_workflow.rb" in names
+        assert "p_rails/spec/workflows/p_workflow_spec.rb" in names
+

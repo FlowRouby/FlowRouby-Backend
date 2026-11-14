@@ -45,17 +45,6 @@ Retorna flowspec con la representacion del flujo en el lenguaje intermedio FlowS
 Retorna generated_ruby con el template generado en Ruby para Rails y Sidekiq dentro del diccionario files, incluyendo el orquestador del workflow, los objetos de formulario para tareas de usuario, los jobs de Sidekiq con llamadas HTTP para conectores, los stubs de reglas de negocio y la suite de pruebas en RSpec.
 
 
-POST /api/v1/flowspec/compile
-
-Compila directamente codigo escrito en el lenguaje intermedio FlowSpec sin necesidad de subir un archivo XML BPMN.
-
-Que requiere para la peticion:
-Recibe un cuerpo JSON con el campo flowspec_code que contiene la declaracion del proceso en sintaxis FlowSpec. La guia de sintaxis de este lenguaje se encuentra en docs/flowspec_reference.md.
-
-Que retorna:
-Retorna metadata, validation, data_contract, el bloque flowspec validado semanticamente con su tabla de simbolos y generated_ruby con los archivos Ruby generados dentro de files.
-
-
 POST /api/v1/processes/simulate
 
 Ejecuta una simulacion del flujo evaluando condiciones de compuertas, formularios, conectores HTTP simulados y bucles sin guardar instancias en base de datos.

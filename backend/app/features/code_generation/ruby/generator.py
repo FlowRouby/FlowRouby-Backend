@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
 from ...flowspec.ast.nodes import (
     BinaryExprAST,
@@ -18,25 +19,45 @@ from ...flowspec.ast.nodes import (
     UnaryExprAST,
 )
 from .templates.rails_templates import (
+    APPLICATION_CONTROLLER_TEMPLATE,
+    APPLICATION_RB_TEMPLATE,
+    BOOT_RB_TEMPLATE,
+    CONFIG_RU_TEMPLATE,
     DECISION_RULE_STUB_TEMPLATE,
     DELEGATE_SERVICE_TEMPLATE,
+    ENV_DEVELOPMENT_TEMPLATE,
+    ENV_PRODUCTION_TEMPLATE,
+    ENV_TEST_TEMPLATE,
+    ENVIRONMENT_RB_TEMPLATE,
     FORM_OBJECT_TEMPLATE,
+    GEMFILE_TEMPLATE,
+    RAILS_HELPER_TEMPLATE,
+    RAILS_README_TEMPLATE,
+    RAKEFILE_TEMPLATE,
+    ROUTES_RB_TEMPLATE,
     RSPEC_WORKFLOW_TEMPLATE,
     SIDEKIQ_HTTP_JOB_TEMPLATE,
+    SIDEKIQ_INITIALIZER_TEMPLATE,
+    SIDEKIQ_YML_TEMPLATE,
+    SPEC_HELPER_TEMPLATE,
     WORKFLOW_ORCHESTRATOR_TEMPLATE,
+    WORKFLOWS_CONTROLLER_TEMPLATE,
 )
 
 
 def to_snake_case(text: str) -> str:
-    cleaned = re.sub(r"[^a-zA-Z0-9]+", "_", text)
+    ascii_text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
+    cleaned = re.sub(r"[^a-zA-Z0-9]+", "_", ascii_text)
     s1 = re.sub(r"(.)([A-Z][a-z]+)", r"\1_\2", cleaned)
     s2 = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
-    return re.sub(r"_+", "_", s2).strip("_") or "step"
+    collapsed = re.sub(r"_+", "_", s2).strip("_")
+    zeitwerk_safe = re.sub(r"_(\d)", r"\1", collapsed)
+    return zeitwerk_safe or "step"
 
 
 def to_pascal_case(text: str) -> str:
     snake = to_snake_case(text)
-    return "".join(part.capitalize() for part in snake.split("_") if part) or "WorkflowStep"
+    return "".join(part[0].upper() + part[1:] for part in snake.split("_") if part) or "WorkflowStep"
 
 
 @dataclass
@@ -49,9 +70,11 @@ class RubyGenerationOutput:
     decision_stubs: Dict[str, str] = field(default_factory=dict)
     rspec_file_path: str = ""
     rspec_code: str = ""
+    scaffold_files: Dict[str, str] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
-        all_files: Dict[str, str] = {self.workflow_file_path: self.workflow_code}
+        all_files: Dict[str, str] = dict(self.scaffold_files)
+        all_files[self.workflow_file_path] = self.workflow_code
         all_files.update(self.form_objects)
         all_files.update(self.sidekiq_jobs)
         all_files.update(self.service_stubs)
@@ -124,6 +147,12 @@ class RubyCodeGenerator:
         sidekiq_jobs: Dict[str, str] = {}
         service_stubs: Dict[str, str] = {}
         decision_stubs: Dict[str, str] = {}
+        used_names: Dict[str, Set[str]] = {
+            "forms": set(),
+            "jobs": set(),
+            "services": set(),
+            "decisions": set(),
+        }
 
         for node in all_nodes:
             method_name = f"execute_{to_snake_case(node.id)}"
@@ -137,6 +166,7 @@ class RubyCodeGenerator:
                     sidekiq_jobs,
                     service_stubs,
                     decision_stubs,
+                    used_names,
                 )
             )
 
@@ -157,6 +187,12 @@ class RubyCodeGenerator:
             acyclic_paths=acyclic_paths or [],
         )
 
+        scaffold_files = self._build_rails_scaffold(
+            ast=ast,
+            proc_snake=proc_snake,
+            workflow_class_name=workflow_class_name,
+        )
+
         return RubyGenerationOutput(
             workflow_file_path=workflow_path,
             workflow_code=workflow_code,
@@ -166,6 +202,7 @@ class RubyCodeGenerator:
             decision_stubs=decision_stubs,
             rspec_file_path=rspec_path,
             rspec_code=rspec_code,
+            scaffold_files=scaffold_files,
         )
 
     def _generate_node_method(
@@ -177,6 +214,7 @@ class RubyCodeGenerator:
         sidekiq_jobs: Dict[str, str],
         service_stubs: Dict[str, str],
         decision_stubs: Dict[str, str],
+        used_names: Dict[str, Set[str]],
     ) -> str:
         lines: List[str] = [f"    # [{node.kind}] {node.name} ({node.id})"]
         lines.append(f"    def {method_name}")
@@ -193,22 +231,25 @@ class RubyCodeGenerator:
 
         if isinstance(node, TaskNodeAST):
             if node.kind == "user_task" and (node.form_fields or node.form_ref):
-                form_cls = f"{to_pascal_case(node.form_ref or node.id)}Form"
-                form_path = f"app/forms/{to_snake_case(node.form_ref or node.id)}_form.rb"
+                base = self._unique_snake(node.form_ref or node.name, node.id, used_names["forms"])
+                form_cls = f"{to_pascal_case(base)}Form"
+                form_path = f"app/forms/{base}_form.rb"
                 form_objects[form_path] = self._build_form_object_code(node, form_cls)
                 lines.append(f"      form = Forms::{form_cls}.new(@context.slice({self._form_field_symbols(node)}))")
                 lines.append("      form.validate!")
 
             if node.http_connector:
-                job_cls = f"{to_pascal_case(node.id)}HttpJob"
-                job_path = f"app/jobs/{to_snake_case(node.id)}_http_job.rb"
+                base = self._unique_snake(node.name, node.id, used_names["jobs"])
+                job_cls = f"{to_pascal_case(base)}HttpJob"
+                job_path = f"app/jobs/{base}_http_job.rb"
                 sidekiq_jobs[job_path] = self._build_sidekiq_http_job_code(node, job_cls)
                 lines.append(f"      @context = Jobs::{job_cls}.new.perform(@context)")
 
             if node.delegate_class:
                 short_cls = node.delegate_class.split(".")[-1]
-                srv_cls = f"{to_pascal_case(short_cls)}Service"
-                srv_path = f"app/services/{to_snake_case(short_cls)}_service.rb"
+                base = self._unique_snake(short_cls, node.id, used_names["services"])
+                srv_cls = f"{to_pascal_case(base)}Service"
+                srv_path = f"app/services/{base}_service.rb"
                 service_stubs[srv_path] = DELEGATE_SERVICE_TEMPLATE.format(
                     node_id=node.id,
                     node_name=node.name,
@@ -218,8 +259,9 @@ class RubyCodeGenerator:
                 lines.append(f"      @context = Services::{srv_cls}.call(@context)")
 
             if node.decision_ref:
-                dec_cls = f"{to_pascal_case(node.decision_ref)}DecisionService"
-                dec_path = f"app/services/decisions/{to_snake_case(node.decision_ref)}_decision_service.rb"
+                base = self._unique_snake(node.decision_ref, node.id, used_names["decisions"])
+                dec_cls = f"{to_pascal_case(base)}DecisionService"
+                dec_path = f"app/services/decisions/{base}_decision_service.rb"
                 res_var = node.result_variable or "decision_result"
                 decision_stubs[dec_path] = DECISION_RULE_STUB_TEMPLATE.format(
                     node_id=node.id,
@@ -370,6 +412,18 @@ class RubyCodeGenerator:
         )
 
     @staticmethod
+    def _unique_snake(raw_name: str, fallback_id: str, used: Set[str]) -> str:
+        candidate = raw_name.strip() if raw_name and raw_name.strip() else fallback_id
+        base = to_snake_case(candidate)
+        name = base
+        counter = 2
+        while name in used:
+            name = f"{base}{counter}"
+            counter += 1
+        used.add(name)
+        return name
+
+    @staticmethod
     def _form_field_symbols(node: TaskNodeAST) -> str:
         if not node.form_fields:
             return ""
@@ -409,4 +463,40 @@ class RubyCodeGenerator:
             sample_payload_ruby=sample_payload_ruby,
             path_specs="\n\n".join(path_specs),
         )
+
+    @staticmethod
+    def _build_rails_scaffold(
+        ast: ProcessAST,
+        proc_snake: str,
+        workflow_class_name: str,
+    ) -> Dict[str, str]:
+        app_module_name = to_pascal_case(ast.process_id)
+        process_name = ast.name or ast.process_id
+        return {
+            "Gemfile": GEMFILE_TEMPLATE,
+            "Rakefile": RAKEFILE_TEMPLATE,
+            "config.ru": CONFIG_RU_TEMPLATE,
+            "README.md": RAILS_README_TEMPLATE.format(
+                app_module_name=app_module_name,
+                process_id=ast.process_id,
+                process_name=process_name,
+                proc_snake=proc_snake,
+            ),
+            "config/boot.rb": BOOT_RB_TEMPLATE,
+            "config/environment.rb": ENVIRONMENT_RB_TEMPLATE,
+            "config/application.rb": APPLICATION_RB_TEMPLATE.format(app_module_name=app_module_name),
+            "config/routes.rb": ROUTES_RB_TEMPLATE.format(proc_snake=proc_snake),
+            "config/sidekiq.yml": SIDEKIQ_YML_TEMPLATE,
+            "config/initializers/sidekiq.rb": SIDEKIQ_INITIALIZER_TEMPLATE,
+            "config/environments/development.rb": ENV_DEVELOPMENT_TEMPLATE,
+            "config/environments/production.rb": ENV_PRODUCTION_TEMPLATE,
+            "config/environments/test.rb": ENV_TEST_TEMPLATE,
+            "app/controllers/application_controller.rb": APPLICATION_CONTROLLER_TEMPLATE,
+            "app/controllers/workflows_controller.rb": WORKFLOWS_CONTROLLER_TEMPLATE.format(
+                process_id=ast.process_id,
+                workflow_class_name=workflow_class_name,
+            ),
+            "spec/spec_helper.rb": SPEC_HELPER_TEMPLATE,
+            "spec/rails_helper.rb": RAILS_HELPER_TEMPLATE,
+        }
 

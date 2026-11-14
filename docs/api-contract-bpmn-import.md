@@ -445,5 +445,5 @@ Varios `endEvent` están permitidos y no generan diagnóstico.
 1. **No hay CORS configurado.** El backend no incluye `CORSMiddleware`; el frontend en otro origen será bloqueado por el navegador hasta que se configure.
 2. **Sin persistencia.** Nada se guarda; cada petición importa de cero (MongoDB queda para una etapa posterior).
 3. `message` está en inglés y no es estable; el frontend debe traducir por `code`.
-4. Los endpoints `/api/v1/flowspec/compile` y la simulación sobre `flowspec_code` no forman parte de este contrato.
+4. La simulación sobre `flowspec_code` no forma parte de este contrato.
 5. En `compile`, un `process` sin atributo `isExecutable` devuelve `is_executable: null`.

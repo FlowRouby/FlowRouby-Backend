@@ -163,3 +163,179 @@ RSpec.describe Workflows::{workflow_class_name}, type: :workflow do
 end
 """
 
+GEMFILE_TEMPLATE = """# frozen_string_literal: true
+
+source "https://rubygems.org"
+
+gem "rails", "~> 7.1"
+gem "puma", ">= 6.0"
+gem "sidekiq", "~> 7.2"
+
+group :development, :test do
+  gem "rspec-rails", "~> 6.1"
+end
+"""
+
+RAKEFILE_TEMPLATE = """# frozen_string_literal: true
+
+require_relative "config/application"
+
+Rails.application.load_tasks
+"""
+
+CONFIG_RU_TEMPLATE = """# frozen_string_literal: true
+
+require_relative "config/environment"
+
+run Rails.application
+"""
+
+BOOT_RB_TEMPLATE = """# frozen_string_literal: true
+
+ENV["BUNDLE_GEMFILE"] ||= File.expand_path("../Gemfile", __dir__)
+
+require "bundler/setup"
+"""
+
+ENVIRONMENT_RB_TEMPLATE = """# frozen_string_literal: true
+
+require_relative "application"
+
+Rails.application.initialize!
+"""
+
+APPLICATION_RB_TEMPLATE = """# frozen_string_literal: true
+
+require_relative "boot"
+
+require "rails"
+require "active_model/railtie"
+require "action_controller/railtie"
+require "active_job/railtie"
+
+Bundler.require(*Rails.groups)
+
+module {app_module_name}
+  class Application < Rails::Application
+    config.load_defaults 7.1
+    config.api_only = true
+    config.autoload_paths << Rails.root.join("app")
+    config.eager_load_paths << Rails.root.join("app")
+  end
+end
+"""
+
+ENV_DEVELOPMENT_TEMPLATE = """# frozen_string_literal: true
+
+require "active_support/core_ext/integer/time"
+
+Rails.application.configure do
+  config.enable_reloading = true
+  config.eager_load = false
+  config.consider_all_requests_local = true
+end
+"""
+
+ENV_PRODUCTION_TEMPLATE = """# frozen_string_literal: true
+
+require "active_support/core_ext/integer/time"
+
+Rails.application.configure do
+  config.enable_reloading = false
+  config.eager_load = true
+  config.consider_all_requests_local = false
+end
+"""
+
+ENV_TEST_TEMPLATE = """# frozen_string_literal: true
+
+require "active_support/core_ext/integer/time"
+
+Rails.application.configure do
+  config.enable_reloading = false
+  config.eager_load = false
+  config.consider_all_requests_local = true
+end
+"""
+
+SIDEKIQ_YML_TEMPLATE = """# frozen_string_literal: true
+
+:concurrency: 5
+:queues:
+  - default
+"""
+
+SIDEKIQ_INITIALIZER_TEMPLATE = """# frozen_string_literal: true
+
+require "sidekiq"
+"""
+
+ROUTES_RB_TEMPLATE = """# frozen_string_literal: true
+
+Rails.application.routes.draw do
+  get "health", to: "workflows#health"
+  post "workflows/{proc_snake}/execute", to: "workflows#execute"
+end
+"""
+
+APPLICATION_CONTROLLER_TEMPLATE = """# frozen_string_literal: true
+
+class ApplicationController < ActionController::API
+end
+"""
+
+WORKFLOWS_CONTROLLER_TEMPLATE = """# frozen_string_literal: true
+
+class WorkflowsController < ApplicationController
+  def health
+    render json: {{ status: "ok", workflow: "{process_id}" }}
+  end
+
+  def execute
+    payload = params.fetch(:payload, params.except(:controller, :action)).to_unsafe_h
+    result = Workflows::{workflow_class_name}.call(payload)
+    render json: result, status: :ok
+  end
+end
+"""
+
+SPEC_HELPER_TEMPLATE = """# frozen_string_literal: true
+
+RSpec.configure do |config|
+  config.expect_with :rspec do |expectations|
+    expectations.include_chain_clauses_in_custom_matcher_descriptions = true
+  end
+
+  config.mock_with :rspec do |mocks|
+    mocks.verify_partial_doubles = true
+  end
+end
+"""
+
+RAILS_HELPER_TEMPLATE = """# frozen_string_literal: true
+
+ENV["RAILS_ENV"] ||= "test"
+require_relative "../config/environment"
+require "rspec/rails"
+require "spec_helper"
+"""
+
+RAILS_README_TEMPLATE = """# {app_module_name}
+
+Auto-generated Ruby on Rails + Sidekiq project for BPMN process `{process_id}` ({process_name}).
+
+## Setup
+
+```bash
+bundle install
+bundle exec rspec
+bundle exec rails server
+```
+
+## Endpoint
+
+- `GET /health`
+- `POST /workflows/{proc_snake}/execute`
+"""
+
+
