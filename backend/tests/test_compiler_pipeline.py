@@ -24,7 +24,8 @@ from app.features.flowspec.semantic_analysis.simulator import FlowSpecSimulator
 from app.features.formal_analysis.services.analysis_service import FormalAnalysisService
 from app.features.flowspec.ast import camunda_extensions as camunda
 from app.features.processes.bpmn_importer import BpmnImporter
-from app.main import app, compile_bpmn_process, simulate_bpmn_process
+from app.features.processes.router import compile_bpmn_process, simulate_bpmn_process
+from app.main import app
 
 PROCESS_MODELS_DIR = os.path.abspath(os.path.join(BACKEND_DIR, "..", "process_models"))
 VISITA_BPMN_PATH = os.path.join(PROCESS_MODELS_DIR, "realizarVisitaTecnica.bpmn")

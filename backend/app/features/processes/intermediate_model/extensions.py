@@ -70,9 +70,6 @@ class Extensions:
     attributes: Dict[str, str] = field(default_factory=dict)
     elements: List[ExtensionElement] = field(default_factory=list)
 
-    def is_empty(self) -> bool:
-        return not self.attributes and not self.elements
-
     def attribute(self, namespace_uri: str, local_name: str) -> Optional[str]:
         return self.attributes.get(qualified_name(namespace_uri, local_name))
 

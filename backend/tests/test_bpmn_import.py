@@ -30,7 +30,7 @@ from app.features.processes.intermediate_model import (
     UnsupportedNode,
 )
 from app.features.processes.services.process_service import ProcessImportService
-from app.main import compile_bpmn_process, simulate_bpmn_process
+from app.features.processes.router import compile_bpmn_process, simulate_bpmn_process
 
 BPMN_NS = "http://www.omg.org/spec/BPMN/20100524/MODEL"
 CAMUNDA_NS = "http://camunda.org/schema/1.0/bpmn"

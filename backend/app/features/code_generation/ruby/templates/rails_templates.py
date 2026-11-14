@@ -170,6 +170,7 @@ source "https://rubygems.org"
 gem "rails", "~> 7.1"
 gem "puma", ">= 6.0"
 gem "sidekiq", "~> 7.2"
+gem "tzinfo-data", platforms: %i[ windows jruby ]
 
 group :development, :test do
   gem "rspec-rails", "~> 6.1"
