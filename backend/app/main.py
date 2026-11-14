@@ -139,7 +139,10 @@ def compile_bpmn_process(
         buffer = io.BytesIO()
         with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
             for rel_path, content in ruby_output.to_dict()["files"].items():
-                archive.writestr(f"{project_slug}/{rel_path}", content)
+                info = zipfile.ZipInfo(f"{project_slug}/{rel_path}")
+                mode = 0o755 if rel_path.startswith("bin/") else 0o644
+                info.external_attr = (0o100000 | mode) << 16
+                archive.writestr(info, content.encode("utf-8"))
         return Response(
             content=buffer.getvalue(),
             media_type="application/zip",

@@ -351,10 +351,14 @@ def test_compile_includes_full_rails_scaffold_in_json() -> None:
         "Gemfile",
         "Rakefile",
         "config.ru",
+        ".gitignore",
         "README.md",
+        "bin/rails",
+        "bin/rake",
         "config/application.rb",
         "config/boot.rb",
         "config/environment.rb",
+        "config/puma.rb",
         "config/routes.rb",
         "config/sidekiq.yml",
         "config/initializers/sidekiq.rb",
@@ -364,6 +368,8 @@ def test_compile_includes_full_rails_scaffold_in_json() -> None:
         "app/controllers/application_controller.rb",
         "app/controllers/workflows_controller.rb",
         "app/workflows/p_workflow.rb",
+        "log/.keep",
+        "tmp/.keep",
         "spec/spec_helper.rb",
         "spec/rails_helper.rb",
         "spec/workflows/p_workflow_spec.rb",
@@ -386,8 +392,12 @@ def test_compile_format_zip_returns_downloadable_rails_project() -> None:
     with zipfile.ZipFile(io.BytesIO(res.content), "r") as zf:
         names = set(zf.namelist())
         assert "p_rails/Gemfile" in names
+        assert "p_rails/bin/rails" in names
+        assert "p_rails/config/puma.rb" in names
         assert "p_rails/config/routes.rb" in names
         assert "p_rails/app/controllers/workflows_controller.rb" in names
         assert "p_rails/app/workflows/p_workflow.rb" in names
         assert "p_rails/spec/workflows/p_workflow_spec.rb" in names
+        bin_info = zf.getinfo("p_rails/bin/rails")
+        assert (bin_info.external_attr >> 16) & 0o777 == 0o755
 

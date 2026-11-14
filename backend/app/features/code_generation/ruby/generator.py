@@ -21,6 +21,8 @@ from ...flowspec.ast.nodes import (
 from .templates.rails_templates import (
     APPLICATION_CONTROLLER_TEMPLATE,
     APPLICATION_RB_TEMPLATE,
+    BIN_RAILS_TEMPLATE,
+    BIN_RAKE_TEMPLATE,
     BOOT_RB_TEMPLATE,
     CONFIG_RU_TEMPLATE,
     DECISION_RULE_STUB_TEMPLATE,
@@ -31,6 +33,8 @@ from .templates.rails_templates import (
     ENVIRONMENT_RB_TEMPLATE,
     FORM_OBJECT_TEMPLATE,
     GEMFILE_TEMPLATE,
+    PUMA_RB_TEMPLATE,
+    RAILS_GITIGNORE_TEMPLATE,
     RAILS_HELPER_TEMPLATE,
     RAILS_README_TEMPLATE,
     RAKEFILE_TEMPLATE,
@@ -47,12 +51,14 @@ from .templates.rails_templates import (
 
 def to_snake_case(text: str) -> str:
     ascii_text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
-    cleaned = re.sub(r"[^a-zA-Z0-9]+", "_", ascii_text)
-    s1 = re.sub(r"(.)([A-Z][a-z]+)", r"\1_\2", cleaned)
-    s2 = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
-    collapsed = re.sub(r"_+", "_", s2).strip("_")
-    zeitwerk_safe = re.sub(r"_(\d)", r"\1", collapsed)
-    return zeitwerk_safe or "step"
+    words = re.findall(r"[A-Z]+(?=[A-Z][a-z])|[A-Z]?[a-z0-9]+|[A-Z]+", ascii_text)
+    parts: List[str] = []
+    for word in words:
+        if parts and word[0].isdigit():
+            parts[-1] += word.lower()
+        else:
+            parts.append(word.lower())
+    return "_".join(parts) or "step"
 
 
 def to_pascal_case(text: str) -> str:
@@ -476,15 +482,19 @@ class RubyCodeGenerator:
             "Gemfile": GEMFILE_TEMPLATE,
             "Rakefile": RAKEFILE_TEMPLATE,
             "config.ru": CONFIG_RU_TEMPLATE,
+            ".gitignore": RAILS_GITIGNORE_TEMPLATE,
             "README.md": RAILS_README_TEMPLATE.format(
                 app_module_name=app_module_name,
                 process_id=ast.process_id,
                 process_name=process_name,
                 proc_snake=proc_snake,
             ),
+            "bin/rails": BIN_RAILS_TEMPLATE,
+            "bin/rake": BIN_RAKE_TEMPLATE,
             "config/boot.rb": BOOT_RB_TEMPLATE,
             "config/environment.rb": ENVIRONMENT_RB_TEMPLATE,
             "config/application.rb": APPLICATION_RB_TEMPLATE.format(app_module_name=app_module_name),
+            "config/puma.rb": PUMA_RB_TEMPLATE,
             "config/routes.rb": ROUTES_RB_TEMPLATE.format(proc_snake=proc_snake),
             "config/sidekiq.yml": SIDEKIQ_YML_TEMPLATE,
             "config/initializers/sidekiq.rb": SIDEKIQ_INITIALIZER_TEMPLATE,
@@ -496,6 +506,8 @@ class RubyCodeGenerator:
                 process_id=ast.process_id,
                 workflow_class_name=workflow_class_name,
             ),
+            "log/.keep": "",
+            "tmp/.keep": "",
             "spec/spec_helper.rb": SPEC_HELPER_TEMPLATE,
             "spec/rails_helper.rb": RAILS_HELPER_TEMPLATE,
         }

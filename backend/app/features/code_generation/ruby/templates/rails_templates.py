@@ -233,6 +233,7 @@ Rails.application.configure do
   config.enable_reloading = true
   config.eager_load = false
   config.consider_all_requests_local = true
+  config.secret_key_base = ENV.fetch("SECRET_KEY_BASE", "dev_secret_key_base_flowrouby_local_only")
 end
 """
 
@@ -244,6 +245,7 @@ Rails.application.configure do
   config.enable_reloading = false
   config.eager_load = true
   config.consider_all_requests_local = false
+  config.secret_key_base = ENV.fetch("SECRET_KEY_BASE") { SecureRandom.hex(64) }
 end
 """
 
@@ -255,7 +257,44 @@ Rails.application.configure do
   config.enable_reloading = false
   config.eager_load = false
   config.consider_all_requests_local = true
+  config.secret_key_base = "test_secret_key_base_flowrouby_local_only"
 end
+"""
+
+PUMA_RB_TEMPLATE = """# frozen_string_literal: true
+
+max_threads_count = ENV.fetch("RAILS_MAX_THREADS", 5)
+min_threads_count = ENV.fetch("RAILS_MIN_THREADS") { max_threads_count }
+threads min_threads_count, max_threads_count
+
+port ENV.fetch("PORT", 3000)
+environment ENV.fetch("RAILS_ENV", "development")
+pidfile ENV.fetch("PIDFILE", "tmp/pids/server.pid")
+plugin :tmp_restart
+"""
+
+BIN_RAILS_TEMPLATE = """#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+APP_PATH = File.expand_path("../config/application", __dir__)
+require_relative "../config/boot"
+require "rails/commands"
+"""
+
+BIN_RAKE_TEMPLATE = """#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require_relative "../config/boot"
+require "rake"
+Rake.application.run
+"""
+
+RAILS_GITIGNORE_TEMPLATE = """/log/*
+/tmp/*
+!/log/.keep
+!/tmp/.keep
+/coverage/
+.env
 """
 
 SIDEKIQ_YML_TEMPLATE = """# frozen_string_literal: true
