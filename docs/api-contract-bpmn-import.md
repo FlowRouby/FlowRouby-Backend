@@ -11,15 +11,15 @@ Los ejemplos de este documento fueron obtenidos ejecutando la API real; no son i
 
 | Método | Ruta | Entrada | Uso |
 |---|---|---|---|
-| POST | `/api/v1/processes/compile` | `multipart/form-data`, campo `file` (exactamente 1 archivo `.bpmn` o `.xml`) | Importa, analiza, emite FlowSpec y genera Ruby |
+| POST | `/api/v1/processes/compile` | `multipart/form-data`, campo `file` (un archivo `.bpmn` o `.xml`) | Importa, analiza, emite FlowSpec y genera Ruby |
 | POST | `/api/v1/processes/simulate` | `multipart/form-data`, campo `file` (`.bpmn`) **o** `flowspec_code`; opcional `input_data` (JSON string) | Simulación sin estado |
-| POST | `/api/v1/processes/import` | `multipart/form-data`, campo `file` (exactamente 1 archivo `.bpmn` o `.xml`) | **Solo importa**: devuelve el modelo y los diagnósticos, sin análisis, FlowSpec, Ruby ni persistencia |
+| POST | `/api/v1/processes/import` | `multipart/form-data`, campo `file` (un archivo `.bpmn` o `.xml`) | **Solo importa**: devuelve el modelo y los diagnósticos, sin análisis, FlowSpec, Ruby ni persistencia |
 
 Los tres importan el XML con las mismas reglas. `compile` y `simulate` se detienen (`422`) cuando el análisis no puede ejecutarse; `import` responde `200` en ese caso para que el diagrama pueda mostrarse.
 
 ### 1.1 `POST /api/v1/processes/import`
 
-**Petición:** `multipart/form-data` con un único campo `file`. Se aplican las reglas de carga del servicio de importación (una sola extensión válida: `.bpmn` o `.xml`; otro caso responde `INVALID_UPLOAD`).
+**Petición:** `multipart/form-data` con un único campo `file`. Se aplican las reglas de carga del servicio de importación (la extensión debe ser `.bpmn` o `.xml`; otro caso responde `INVALID_UPLOAD`). Si se envían varios campos `file`, no se rechaza: se procesa uno solo y los demás se ignoran, así que el frontend debe enviar un único archivo.
 
 **Respuestas:**
 
@@ -378,7 +378,7 @@ Distingue la forma de `detail`:
 
 | Situación | Forma de `detail` |
 |---|---|
-| Archivo con extensión inválida o más de un archivo | objeto con `message` y `diagnostics` (código `INVALID_UPLOAD`) |
+| Archivo con extensión distinta de `.bpmn`/`.xml` | objeto con `message` y `diagnostics` (código `INVALID_UPLOAD`) |
 | No se envió el campo `file` | lista de errores de validación de FastAPI: `[{ "type", "loc", "msg", "input" }]` |
 | `input_data` no es un JSON objeto (simulate) | `{ "message": "..." }` |
 | Error de sintaxis FlowSpec generado | `{ "message", "line", "column", "flowspec_code" }` |
@@ -410,7 +410,7 @@ Las reglas marcadas como *perfil FlowRouby* son restricciones explícitas del al
 
 | Código | Severidad | Bloquea | Origen | Significado |
 |---|---|---|---|---|
-| `INVALID_UPLOAD` | error | n/a | petición | Más de un archivo o extensión distinta de `.bpmn`/`.xml` |
+| `INVALID_UPLOAD` | error | n/a | petición | Extensión de archivo distinta de `.bpmn`/`.xml` |
 | `XML_MALFORMED` | error | n/a | XML | XML mal formado o con DTD/entidades (rechazado por seguridad) |
 | `NOT_BPMN` | error | n/a | BPMN | La raíz no es `definitions` en el namespace BPMN 2.0 |
 | `NO_PROCESS` | error | n/a | BPMN | No hay ningún `process` |
