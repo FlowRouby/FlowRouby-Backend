@@ -1,16 +1,34 @@
-"""HTTP routes of the processes feature that only import BPMN (no analysis, no code generation)."""
+"""HTTP routes for the processes feature (import, compile, and simulate)."""
 
 from __future__ import annotations
 
-from typing import Any, Dict
+import io
+import json
+import zipfile
+from typing import Annotated, Any, Dict, Literal, Optional
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Query, Response, UploadFile
 
+from ..code_generation.ruby.generator import RubyCodeGenerator, to_snake_case
+from ..flowspec.ast.emitter import FlowSpecEmitter
+from ..flowspec.lexer.lexer import FlowSpecLexicalError
+from ..flowspec.parser.parser import FlowSpecParser, FlowSpecSyntaxError
+from ..flowspec.semantic_analysis.analyzer import FlowSpecSemanticAnalyzer
+from ..flowspec.semantic_analysis.simulator import FlowSpecSimulator
+from ..formal_analysis.services.analysis_service import FormalAnalysisService
+from .dependencies import import_analyzable_process, import_bpmn_document
 from .import_response import build_import_response
 from .services.process_service import ProcessImportService
 
 router = APIRouter(prefix="/api/v1/processes", tags=["processes"])
+
 process_service = ProcessImportService()
+formal_service = FormalAnalysisService()
+flowspec_emitter = FlowSpecEmitter()
+flowspec_parser = FlowSpecParser()
+semantic_analyzer = FlowSpecSemanticAnalyzer()
+ruby_generator = RubyCodeGenerator()
+simulator = FlowSpecSimulator()
 
 
 @router.post(
@@ -21,20 +39,128 @@ process_service = ProcessImportService()
 def import_bpmn_process(
     file: UploadFile = File(..., description="Single .bpmn or .xml file to import"),
 ) -> Dict[str, Any]:
-    """Imports a BPMN 2.0 file and returns the neutral process model plus every diagnostic.
+    """Imports a BPMN 2.0 file and returns the neutral process model plus every diagnostic."""
+    result = import_bpmn_document(file, process_service)
+    return build_import_response(result)
 
-    Nothing is analyzed, emitted or stored. The response is `200` even when warnings exist or
-    analysis is blocked, so the diagram can still be displayed. `supported` tells whether formal
-    analysis can run on this import (`false` when any diagnostic has `blocksAnalysis: true`).
-    A document that cannot be imported at all answers `422` with the error diagnostics.
-    """
-    result = process_service.import_single_bpmn(file.file.read(), filename=file.filename, file_count=1)
-    if result.has_errors:
+
+@router.post("/compile")
+def compile_bpmn_process(
+    file: UploadFile = File(..., description="Single .bpmn or .xml file to compile"),
+    format: Annotated[
+        Literal["json", "zip"],
+        Query(description="Response format: 'json' (default) or 'zip' (downloadable Rails project)"),
+    ] = "json",
+) -> Any:
+    """Accepts a single .bpmn file, validates it, runs formal automata analysis,
+    emits and compiles FlowSpec DSL, and returns either the full compilation JSON
+    or a downloadable Ruby on Rails + Sidekiq project ZIP."""
+    graph, diagnostics = import_analyzable_process(file, process_service)
+
+    formal_report = formal_service.analyze(graph)
+
+    flowspec_code = flowspec_emitter.emit(graph)
+    try:
+        process_ast = flowspec_parser.parse(flowspec_code)
+    except (FlowSpecLexicalError, FlowSpecSyntaxError) as exc:
         raise HTTPException(
             status_code=422,
             detail={
-                "message": "The BPMN document could not be imported.",
-                "diagnostics": [d.to_dict() for d in result.errors],
+                "message": str(exc),
+                "line": exc.line,
+                "column": exc.column,
+                "flowspec_code": flowspec_code,
             },
+        ) from exc
+
+    semantic_result = semantic_analyzer.analyze(process_ast)
+
+    ruby_output = ruby_generator.generate(
+        ast=process_ast,
+        sample_payload=semantic_result.data_contract.get("sample_payload", {}),
+        acyclic_paths=formal_report.acyclic_paths,
+    )
+
+    if format == "zip":
+        project_slug = f"{to_snake_case(graph.process_id)}_rails"
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+            for rel_path, content in ruby_output.to_dict()["files"].items():
+                info = zipfile.ZipInfo(f"{project_slug}/{rel_path}")
+                mode = 0o755 if rel_path.startswith("bin/") else 0o644
+                info.external_attr = (0o100000 | mode) << 16
+                archive.writestr(info, content.encode("utf-8"))
+        return Response(
+            content=buffer.getvalue(),
+            media_type="application/zip",
+            headers={"Content-Disposition": f'attachment; filename="{project_slug}.zip"'},
         )
-    return build_import_response(result)
+
+    return {
+        "metadata": {
+            "process_id": graph.process_id,
+            "process_name": graph.name or graph.process_id,
+            "participant_name": graph.participant_name,
+            "is_executable": graph.is_executable,
+            "lanes": [l.name or l.id for l in graph.lanes],
+            "node_count": len(graph.nodes),
+            "edge_count": len(graph.edges),
+        },
+        "validation": {
+            "valid": formal_report.is_valid_workflow and semantic_result.valid,
+            "diagnostics": [d.to_dict() for d in diagnostics],
+            "semantic_errors": semantic_result.errors,
+            "semantic_warnings": semantic_result.warnings,
+        },
+        "data_contract": semantic_result.data_contract,
+        "formal_analysis": formal_report.to_dict(),
+        "flowspec": {
+            "chomsky_classification": "Type-2",
+            "code": flowspec_code,
+            "symbol_table": semantic_result.to_dict()["symbol_table"],
+        },
+        "generated_ruby": ruby_output.to_dict(),
+    }
+
+
+@router.post("/simulate")
+def simulate_bpmn_process(
+    file: Optional[UploadFile] = File(None, description="Optional .bpmn file to simulate"),
+    flowspec_code: Optional[str] = Form(None, description="Optional FlowSpec DSL source code"),
+    input_data: str = Form("{}", description="JSON object string with initial variables and form data"),
+) -> Dict[str, Any]:
+    """Runs a stateless Dry-Run simulation over either an uploaded .bpmn file or FlowSpec code."""
+    try:
+        parsed_input = json.loads(input_data) if input_data else {}
+        if not isinstance(parsed_input, dict):
+            raise ValueError("input_data must be a JSON object")
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail={"message": f"Invalid input_data JSON: {exc}"}) from exc
+
+    dfa = None
+    if file is not None:
+        graph, _ = import_analyzable_process(file, process_service)
+        formal_report = formal_service.analyze(graph)
+        dfa = formal_report.dfa
+        code_to_run = flowspec_emitter.emit(graph)
+    elif flowspec_code:
+        code_to_run = flowspec_code
+    else:
+        raise HTTPException(
+            status_code=422,
+            detail={"message": "Provide either a 'file' (.bpmn) or 'flowspec_code' to simulate."},
+        )
+
+    try:
+        process_ast = flowspec_parser.parse(code_to_run)
+    except (FlowSpecLexicalError, FlowSpecSyntaxError) as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"message": str(exc), "line": exc.line, "column": exc.column},
+        ) from exc
+
+    sim_result = simulator.simulate(ast=process_ast, input_data=parsed_input, dfa=dfa)
+    return {
+        "process_id": process_ast.process_id,
+        "simulation": sim_result.to_dict(),
+    }

@@ -76,14 +76,6 @@ class FlowSpecParser:
         self._expect(TokenType.EOF)
         return process_ast
 
-    def parse_expression_string(self, expr_source: str) -> ExprAST:
-        """Parses a standalone expression string into an ExprAST."""
-        self.tokens = self.lexer.tokenize(expr_source)
-        self.pos = 0
-        expr = self._parse_expr()
-        self._expect(TokenType.EOF)
-        return expr
-
     def _current(self) -> Token:
         return self.tokens[self.pos]
 
