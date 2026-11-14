@@ -7,6 +7,7 @@ from typing import List, Tuple
 from fastapi import HTTPException, UploadFile
 
 from .intermediate_model.diagnostics import Diagnostic, ImportResult
+from .intermediate_model.id_normalizer import normalize_node_ids
 from .intermediate_model.models import ProcessGraph
 from .services.process_service import ProcessImportService
 
@@ -39,5 +40,6 @@ def import_analyzable_process(
                 "diagnostics": [d.to_dict() for d in result.analysis_blockers],
             },
         )
+    normalize_node_ids(graph)
     return graph, result.diagnostics
 

@@ -48,7 +48,7 @@ Se acordó limpiar estas tres redundancias y **conservar `formal_analysis.dfa.st
     "sample_payload": {...}
   },
   "formal_analysis": {
-    "chomsky_classification": "Type-3 (Regular Language over Activity Traces)",
+    "chomsky_classification": "Type-3",
     "is_valid_workflow": true,
     "regular_expression": "...",
     "nfa_state_count": 16,
@@ -65,7 +65,7 @@ Se acordó limpiar estas tres redundancias y **conservar `formal_analysis.dfa.st
     "diagnostics": {...}
   },
   "flowspec": {
-    "chomsky_classification": "Type-2 (Context-Free Grammar LL(1))",
+    "chomsky_classification": "Type-2",
     "code": "process realizarVisitaTecnica ...",
     "symbol_table": {
       "nodes_count": 7,

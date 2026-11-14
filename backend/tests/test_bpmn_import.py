@@ -640,8 +640,8 @@ def test_compile_pipeline_still_generates_flowspec_and_ruby_from_camunda_extensi
     assert 'ask boolean visita labeled "Visit done"' in code
     assert "http call" in code and 'url "http://localhost:9095/tickets"' in code
     assert '"TicketId" from TicketId' in code
-    assert "if visita is true go to Update" in code
-    assert "otherwise go to Skipped" in code
+    assert "if visita is true go to task_2" in code
+    assert "otherwise go to end_1" in code
     assert data["metadata"]["lanes"] == ["Technician"]
     assert data["validation"]["valid"] is True
     assert [d["code"] for d in data["validation"]["diagnostics"]] == ["XOR_FLOW_WITHOUT_CONDITION_OR_DEFAULT"]
@@ -651,7 +651,7 @@ def test_compile_pipeline_still_generates_flowspec_and_ruby_from_camunda_extensi
 def test_simulation_runs_on_the_imported_process() -> None:
     sim = simulate_bpmn_process(file=_upload(CAMUNDA_PIPELINE_BPMN), flowspec_code=None, input_data='{"visita": false}')
     assert sim["simulation"]["completed"] is True
-    assert sim["simulation"]["visited_nodes"][-1] == "Skipped"
+    assert sim["simulation"]["visited_nodes"][-1] == "end_1"
 
 
 WITH_TIMER = definitions(

@@ -213,6 +213,11 @@ def test_fastapi_endpoints_compile_and_simulate() -> None:
     assert "app/workflows/realizar_visita_tecnica_workflow.rb" in data["generated_ruby"]["files"]
     assert "app/forms/validar_visita_form.rb" in data["generated_ruby"]["files"]
     assert "app/jobs/actualizar_estado_del_ticket_de_visita_en_fsm_http_job.rb" in data["generated_ruby"]["files"]
+    workflow_rb = data["generated_ruby"]["files"]["app/workflows/realizar_visita_tecnica_workflow.rb"]
+    assert "when :task_1" in workflow_rb
+    assert "def execute_task1" in workflow_rb
+    assert "Activity_1aczp5w" not in workflow_rb
+    assert "Activity_1aczp5w" not in data["flowspec"]["code"]
 
     upload_sim_false = UploadFile(filename="realizarVisitaTecnica.bpmn", file=io.BytesIO(visita_bytes))
     sim_resp_false = simulate_bpmn_process(
@@ -223,7 +228,7 @@ def test_fastapi_endpoints_compile_and_simulate() -> None:
     sim_false_data = sim_resp_false["simulation"]
     assert sim_false_data["completed"] is True
     assert sim_false_data["accepted_by_dfa"] is True
-    assert sim_false_data["visited_nodes"][-1] == "Event_1ggqko4"
+    assert sim_false_data["visited_nodes"][-1] == "end_1"
 
     upload_sim_true = UploadFile(filename="realizarVisitaTecnica.bpmn", file=io.BytesIO(visita_bytes))
     sim_resp_true = simulate_bpmn_process(
@@ -234,7 +239,7 @@ def test_fastapi_endpoints_compile_and_simulate() -> None:
     sim_true_data = sim_resp_true["simulation"]
     assert sim_true_data["completed"] is True
     assert sim_true_data["accepted_by_dfa"] is True
-    assert sim_true_data["visited_nodes"][-1] == "Event_1swqw02"
+    assert sim_true_data["visited_nodes"][-1] == "end_2"
     assert len(sim_true_data["http_requests_simulated"]) == 1
     assert sim_true_data["http_requests_simulated"][0]["payload"] == {"TicketIdVisita": "TCK-999"}
 
