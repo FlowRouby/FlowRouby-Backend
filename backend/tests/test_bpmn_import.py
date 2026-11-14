@@ -636,12 +636,12 @@ def test_compile_pipeline_still_generates_flowspec_and_ruby_from_camunda_extensi
     data = compile_bpmn_process(file=_upload(CAMUNDA_PIPELINE_BPMN))
 
     code = data["flowspec"]["code"]
-    assert 'lane "Technician" {' in code
-    assert 'form_field visita: boolean "Visit done";' in code
-    assert "http_connector {" in code and 'url: "http://localhost:9095/tickets";' in code
-    assert 'payload: { "TicketId": TicketId };' in code
-    assert "when (visita == true) -> Update;" in code
-    assert "default -> Skipped;" in code
+    assert 'lane "Technician"' in code
+    assert 'ask boolean visita labeled "Visit done"' in code
+    assert "http call" in code and 'url "http://localhost:9095/tickets"' in code
+    assert '"TicketId" from TicketId' in code
+    assert "if visita is true go to Update" in code
+    assert "otherwise go to Skipped" in code
     assert data["metadata"]["lanes"] == ["Technician"]
     assert data["validation"]["valid"] is True
     assert [d["code"] for d in data["validation"]["diagnostics"]] == ["XOR_FLOW_WITHOUT_CONDITION_OR_DEFAULT"]

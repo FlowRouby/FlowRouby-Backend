@@ -1,8 +1,8 @@
-"""Vanilla Python LL(1) Recursive Descent Parser for the FlowSpec Context-Free Grammar (Chomsky Type 2)."""
+"""Vanilla Python Top-Down Recursive Descent Parser LL(1) (Chomsky Type 2 CFG) for FlowSpec DSL."""
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from ..ast.nodes import (
     BinaryExprAST,
@@ -22,9 +22,55 @@ from ..ast.nodes import (
 )
 from ..lexer.lexer import FlowSpecLexer, Token, TokenType
 
+IDENTIFIER_LIKE_TOKENS = {
+    TokenType.IDENTIFIER,
+    TokenType.PROCESS,
+    TokenType.LANE,
+    TokenType.START,
+    TokenType.END,
+    TokenType.USER,
+    TokenType.SERVICE,
+    TokenType.SCRIPT,
+    TokenType.MANUAL,
+    TokenType.BUSINESS,
+    TokenType.RULE,
+    TokenType.CALL,
+    TokenType.ACTIVITY,
+    TokenType.TASK,
+    TokenType.DECISION,
+    TokenType.PARALLEL,
+    TokenType.INCLUSIVE,
+    TokenType.SPLIT,
+    TokenType.ASK,
+    TokenType.LABELED,
+    TokenType.USE,
+    TokenType.FORM,
+    TokenType.DELEGATE,
+    TokenType.DECIDE,
+    TokenType.INTO,
+    TokenType.SET,
+    TokenType.INPUT,
+    TokenType.OUTPUT,
+    TokenType.RUN,
+    TokenType.HTTP,
+    TokenType.METHOD,
+    TokenType.URL,
+    TokenType.HEADERS,
+    TokenType.PAYLOAD,
+    TokenType.WITH,
+    TokenType.SAVE,
+    TokenType.FROM,
+    TokenType.NEXT,
+    TokenType.IF,
+    TokenType.OTHERWISE,
+    TokenType.GO,
+    TokenType.TO,
+    TokenType.BRANCH,
+}
+
 
 class FlowSpecSyntaxError(Exception):
-    """Raised when the FlowSpec parser encounters a syntax error in the token stream."""
+    """Raised when the FlowSpec LL(1) parser encounters an unexpected token."""
 
     def __init__(self, message: str, line: int, column: int, token_value: str = ""):
         super().__init__(f"[Line {line}, Col {column}] SyntaxError: {message}")
@@ -34,35 +80,8 @@ class FlowSpecSyntaxError(Exception):
         self.token_value = token_value
 
 
-TASK_TOKEN_TYPES = {
-    TokenType.USER_TASK,
-    TokenType.SERVICE_TASK,
-    TokenType.SCRIPT_TASK,
-    TokenType.MANUAL_TASK,
-    TokenType.BUSINESS_RULE_TASK,
-    TokenType.CALL_ACTIVITY,
-}
-
-GATEWAY_TOKEN_TYPES = {
-    TokenType.EXCLUSIVE_GATEWAY,
-    TokenType.PARALLEL_GATEWAY,
-    TokenType.INCLUSIVE_GATEWAY,
-}
-
-IDENTIFIER_LIKE_TOKENS = {
-    TokenType.IDENTIFIER,
-    TokenType.METHOD,
-    TokenType.URL,
-    TokenType.HEADERS,
-    TokenType.PAYLOAD,
-    TokenType.INPUT,
-    TokenType.OUTPUT,
-    TokenType.SCRIPT,
-}
-
-
 class FlowSpecParser:
-    """LL(1) Recursive Descent Parser that builds a ProcessAST from FlowSpec DSL code."""
+    """LL(1) Recursive Descent Parser for natural indentation-based FlowSpec DSL."""
 
     def __init__(self) -> None:
         self.lexer = FlowSpecLexer()
@@ -78,6 +97,12 @@ class FlowSpecParser:
 
     def _current(self) -> Token:
         return self.tokens[self.pos]
+
+    def _peek(self, offset: int = 1) -> Token:
+        idx = self.pos + offset
+        if idx < len(self.tokens):
+            return self.tokens[idx]
+        return self.tokens[-1]
 
     def _advance(self) -> Token:
         tok = self.tokens[self.pos]
@@ -108,26 +133,34 @@ class FlowSpecParser:
             tok.value,
         )
 
+    def _parse_name_and_id(self) -> Tuple[str, str]:
+        name_tok = self._match(TokenType.STRING)
+        if name_tok is not None:
+            self._expect(TokenType.AS)
+            id_tok = self._expect_identifier_name()
+            return name_tok.value, id_tok.value
+        id_tok = self._expect_identifier_name()
+        return id_tok.value, id_tok.value
+
     def _parse_program(self) -> ProcessAST:
         proc_tok = self._expect(TokenType.PROCESS)
-        id_tok = self._expect_identifier_name()
-        name_tok = self._match(TokenType.STRING)
-        proc_name = name_tok.value if name_tok else id_tok.value
+        display_name, process_id = self._parse_name_and_id()
+        self._expect(TokenType.NEWLINE)
 
-        self._expect(TokenType.LBRACE)
         lanes: List[LaneAST] = []
         nodes: List[NodeAST] = []
 
-        while self._current().type != TokenType.RBRACE and self._current().type != TokenType.EOF:
-            if self._current().type == TokenType.LANE:
-                lanes.append(self._parse_lane())
-            else:
-                nodes.append(self._parse_node_decl(lane_name=None))
+        if self._match(TokenType.INDENT):
+            while self._current().type not in (TokenType.DEDENT, TokenType.EOF):
+                if self._current().type == TokenType.LANE:
+                    lanes.append(self._parse_lane())
+                else:
+                    nodes.append(self._parse_node(lane=None))
+            self._expect(TokenType.DEDENT)
 
-        self._expect(TokenType.RBRACE)
         return ProcessAST(
-            process_id=id_tok.value,
-            name=proc_name,
+            process_id=process_id,
+            name=display_name,
             lanes=lanes,
             nodes=nodes,
             line=proc_tok.line,
@@ -137,11 +170,12 @@ class FlowSpecParser:
     def _parse_lane(self) -> LaneAST:
         lane_tok = self._expect(TokenType.LANE)
         name_tok = self._expect(TokenType.STRING)
-        self._expect(TokenType.LBRACE)
+        self._expect(TokenType.NEWLINE)
         lane_nodes: List[NodeAST] = []
-        while self._current().type != TokenType.RBRACE and self._current().type != TokenType.EOF:
-            lane_nodes.append(self._parse_node_decl(lane_name=name_tok.value))
-        self._expect(TokenType.RBRACE)
+        if self._match(TokenType.INDENT):
+            while self._current().type not in (TokenType.DEDENT, TokenType.EOF):
+                lane_nodes.append(self._parse_node(lane=name_tok.value))
+            self._expect(TokenType.DEDENT)
         return LaneAST(
             name=name_tok.value,
             nodes=lane_nodes,
@@ -149,314 +183,373 @@ class FlowSpecParser:
             column=lane_tok.column,
         )
 
-    def _parse_node_decl(self, lane_name: Optional[str]) -> NodeAST:
-        curr = self._current()
-        if curr.type == TokenType.START:
-            return self._parse_start_decl(lane_name)
-        if curr.type == TokenType.END:
-            return self._parse_end_decl(lane_name)
-        if curr.type in TASK_TOKEN_TYPES:
-            return self._parse_task_decl(lane_name)
-        if curr.type in GATEWAY_TOKEN_TYPES:
-            return self._parse_gateway_decl(lane_name)
-
+    def _parse_node(self, lane: Optional[str]) -> NodeAST:
+        tok = self._current()
+        if tok.type == TokenType.START:
+            return self._parse_start(lane)
+        if tok.type == TokenType.END:
+            return self._parse_end(lane)
+        if tok.type in (
+            TokenType.USER,
+            TokenType.SERVICE,
+            TokenType.SCRIPT,
+            TokenType.MANUAL,
+            TokenType.BUSINESS,
+            TokenType.CALL,
+        ):
+            return self._parse_task(lane)
+        if tok.type in (TokenType.DECISION, TokenType.PARALLEL, TokenType.INCLUSIVE):
+            return self._parse_gateway(lane)
         raise FlowSpecSyntaxError(
-            f"Unexpected token '{curr.value}' ({curr.type.value}) where a node declaration was expected",
-            curr.line,
-            curr.column,
-            curr.value,
+            f"Unexpected token '{tok.value}' ({tok.type.value}) while parsing flow node.",
+            tok.line,
+            tok.column,
+            tok.value,
         )
 
-    def _parse_start_decl(self, lane_name: Optional[str]) -> TaskNodeAST:
+    def _parse_start(self, lane: Optional[str]) -> TaskNodeAST:
         start_tok = self._expect(TokenType.START)
-        id_tok = self._expect_identifier_name()
-        name_tok = self._match(TokenType.STRING)
-        node_name = name_tok.value if name_tok else id_tok.value
+        display_name, node_id = self._parse_name_and_id()
+        self._expect(TokenType.NEWLINE)
 
-        node = TaskNodeAST(
-            id=id_tok.value,
-            name=node_name,
+        task = TaskNodeAST(
+            id=node_id,
+            name=display_name,
             kind="start",
-            lane=lane_name,
+            lane=lane,
             line=start_tok.line,
             column=start_tok.column,
         )
+        if self._match(TokenType.INDENT):
+            while self._current().type not in (TokenType.DEDENT, TokenType.EOF):
+                self._parse_task_attribute(task)
+            self._expect(TokenType.DEDENT)
+        return task
 
-        if self._match(TokenType.LBRACE):
-            self._parse_task_body(node)
-            self._expect(TokenType.RBRACE)
-        else:
-            if self._match(TokenType.ARROW):
-                target = self._expect_identifier_name()
-                node.transitions.append(target.value)
-            self._expect(TokenType.SEMICOLON)
-
-        return node
-
-    def _parse_end_decl(self, lane_name: Optional[str]) -> NodeAST:
+    def _parse_end(self, lane: Optional[str]) -> NodeAST:
         end_tok = self._expect(TokenType.END)
-        id_tok = self._expect_identifier_name()
-        name_tok = self._match(TokenType.STRING)
-        node_name = name_tok.value if name_tok else id_tok.value
-        self._expect(TokenType.SEMICOLON)
+        display_name, node_id = self._parse_name_and_id()
+        self._expect(TokenType.NEWLINE)
         return NodeAST(
-            id=id_tok.value,
-            name=node_name,
+            id=node_id,
+            name=display_name,
             kind="end",
-            lane=lane_name,
-            transitions=[],
+            lane=lane,
             line=end_tok.line,
             column=end_tok.column,
         )
 
-    def _parse_task_decl(self, lane_name: Optional[str]) -> TaskNodeAST:
-        kind_tok = self._advance()
-        id_tok = self._expect_identifier_name()
-        name_tok = self._match(TokenType.STRING)
-        node_name = name_tok.value if name_tok else id_tok.value
+    def _parse_task_kind(self) -> Tuple[Token, str]:
+        tok = self._advance()
+        if tok.type == TokenType.USER:
+            self._expect(TokenType.TASK)
+            return tok, "user_task"
+        if tok.type == TokenType.SERVICE:
+            self._expect(TokenType.TASK)
+            return tok, "service_task"
+        if tok.type == TokenType.SCRIPT:
+            self._expect(TokenType.TASK)
+            return tok, "script_task"
+        if tok.type == TokenType.MANUAL:
+            self._expect(TokenType.TASK)
+            return tok, "manual_task"
+        if tok.type == TokenType.BUSINESS:
+            self._expect(TokenType.RULE)
+            return tok, "business_rule_task"
+        self._expect(TokenType.ACTIVITY)
+        return tok, "call_activity"
 
-        node = TaskNodeAST(
-            id=id_tok.value,
-            name=node_name,
-            kind=kind_tok.value,
-            lane=lane_name,
+    def _parse_task(self, lane: Optional[str]) -> TaskNodeAST:
+        kind_tok, kind = self._parse_task_kind()
+        display_name, node_id = self._parse_name_and_id()
+        self._expect(TokenType.NEWLINE)
+
+        task = TaskNodeAST(
+            id=node_id,
+            name=display_name,
+            kind=kind,
+            lane=lane,
             line=kind_tok.line,
             column=kind_tok.column,
         )
 
-        self._expect(TokenType.LBRACE)
-        self._parse_task_body(node)
-        self._expect(TokenType.RBRACE)
-        return node
+        if self._match(TokenType.INDENT):
+            while self._current().type not in (TokenType.DEDENT, TokenType.EOF):
+                self._parse_task_attribute(task)
+            self._expect(TokenType.DEDENT)
 
-    def _parse_task_body(self, node: TaskNodeAST) -> None:
-        while self._current().type != TokenType.RBRACE and self._current().type != TokenType.EOF:
-            curr = self._current()
-            if curr.type == TokenType.FORM_FIELD:
-                self._advance()
-                fid = self._expect_identifier_name()
-                self._expect(TokenType.COLON)
-                ftype = self._expect_identifier_name()
-                flabel_tok = self._match(TokenType.STRING)
-                self._expect(TokenType.SEMICOLON)
-                node.form_fields.append(
-                    FormFieldAST(
-                        name=fid.value,
-                        field_type=ftype.value,
-                        label=flabel_tok.value if flabel_tok else fid.value,
-                        line=curr.line,
-                        column=curr.column,
-                    )
+        return task
+
+    def _parse_task_attribute(self, task: TaskNodeAST) -> None:
+        tok = self._current()
+
+        if tok.type == TokenType.ASK:
+            self._advance()
+            type_tok = self._expect_identifier_name()
+            field_name_tok = self._expect_identifier_name()
+            label = field_name_tok.value
+            if self._match(TokenType.LABELED):
+                label = self._expect(TokenType.STRING).value
+            self._expect(TokenType.NEWLINE)
+            task.form_fields.append(
+                FormFieldAST(
+                    name=field_name_tok.value,
+                    field_type=type_tok.value,
+                    label=label,
+                    line=tok.line,
+                    column=tok.column,
                 )
-            elif curr.type == TokenType.FORM_REF:
-                self._advance()
-                fref = self._expect(TokenType.STRING)
-                self._expect(TokenType.SEMICOLON)
-                node.form_ref = fref.value
-            elif curr.type == TokenType.DELEGATE_CLASS:
-                self._advance()
-                dcls = self._expect(TokenType.STRING)
-                self._expect(TokenType.SEMICOLON)
-                node.delegate_class = dcls.value
-            elif curr.type == TokenType.DECISION_REF:
-                self._advance()
-                dref = self._expect(TokenType.STRING)
-                self._expect(TokenType.ARROW)
-                rvar = self._expect_identifier_name()
-                self._expect(TokenType.SEMICOLON)
-                node.decision_ref = dref.value
-                node.result_variable = rvar.value
-            elif curr.type == TokenType.CALLED_ELEMENT:
-                self._advance()
-                celem = self._expect(TokenType.STRING)
-                self._expect(TokenType.SEMICOLON)
-                node.called_element = celem.value
-            elif curr.type == TokenType.SCRIPT:
-                self._advance()
-                scr = self._expect(TokenType.STRING)
-                self._expect(TokenType.SEMICOLON)
-                node.script = scr.value
-            elif curr.type in (TokenType.INPUT, TokenType.OUTPUT):
-                dir_tok = self._advance()
-                target_id = self._expect_identifier_name()
-                self._expect(TokenType.LEFT_ARROW)
-                expr = self._parse_expr()
-                self._expect(TokenType.SEMICOLON)
-                node.io_mappings.append(
-                    IOMappingAST(
-                        direction=dir_tok.value,
-                        target=target_id.value,
-                        expr=expr,
-                        line=dir_tok.line,
-                        column=dir_tok.column,
-                    )
-                )
-            elif curr.type == TokenType.HTTP_CONNECTOR:
-                node.http_connector = self._parse_http_connector()
-            elif curr.type == TokenType.ARROW:
-                self._advance()
-                tgt = self._expect_identifier_name()
-                self._expect(TokenType.SEMICOLON)
-                node.transitions.append(tgt.value)
+            )
+            return
+
+        if tok.type == TokenType.USE:
+            self._advance()
+            self._expect(TokenType.FORM)
+            task.form_ref = self._expect(TokenType.STRING).value
+            self._expect(TokenType.NEWLINE)
+            return
+
+        if tok.type == TokenType.DELEGATE:
+            self._advance()
+            task.delegate_class = self._expect(TokenType.STRING).value
+            self._expect(TokenType.NEWLINE)
+            return
+
+        if tok.type == TokenType.DECIDE:
+            self._advance()
+            task.decision_ref = self._expect(TokenType.STRING).value
+            self._expect(TokenType.INTO)
+            task.result_variable = self._expect_identifier_name().value
+            self._expect(TokenType.NEWLINE)
+            return
+
+        if tok.type == TokenType.CALL:
+            self._advance()
+            task.called_element = self._expect(TokenType.STRING).value
+            self._expect(TokenType.NEWLINE)
+            return
+
+        if tok.type == TokenType.RUN:
+            self._advance()
+            self._expect(TokenType.SCRIPT)
+            task.script = self._expect(TokenType.STRING).value
+            self._expect(TokenType.NEWLINE)
+            return
+
+        if tok.type == TokenType.SET:
+            self._advance()
+            if self._match(TokenType.INPUT):
+                direction = "input"
+            elif self._match(TokenType.OUTPUT):
+                direction = "output"
             else:
+                bad = self._current()
                 raise FlowSpecSyntaxError(
-                    f"Unexpected token '{curr.value}' inside task '{node.id}'",
-                    curr.line,
-                    curr.column,
-                    curr.value,
+                    f"Expected 'input' or 'output' after 'set', got '{bad.value}'",
+                    bad.line,
+                    bad.column,
+                    bad.value,
                 )
+            target_tok = self._expect_identifier_name()
+            self._expect(TokenType.FROM)
+            expr = self._parse_expr()
+            self._expect(TokenType.NEWLINE)
+            task.io_mappings.append(
+                IOMappingAST(
+                    direction=direction,
+                    target=target_tok.value,
+                    expr=expr,
+                    line=tok.line,
+                    column=tok.column,
+                )
+            )
+            return
+
+        if tok.type == TokenType.HTTP:
+            task.http_connector = self._parse_http_connector()
+            return
+
+        if tok.type == TokenType.NEXT:
+            self._advance()
+            self._expect(TokenType.IS)
+            target_tok = self._expect_identifier_name()
+            self._expect(TokenType.NEWLINE)
+            task.transitions.append(target_tok.value)
+            return
+
+        raise FlowSpecSyntaxError(
+            f"Unexpected token '{tok.value}' inside task '{task.id}'.",
+            tok.line,
+            tok.column,
+            tok.value,
+        )
 
     def _parse_http_connector(self) -> HttpConnectorAST:
-        hc_tok = self._expect(TokenType.HTTP_CONNECTOR)
-        self._expect(TokenType.LBRACE)
-        hc = HttpConnectorAST(line=hc_tok.line, column=hc_tok.column)
+        http_tok = self._expect(TokenType.HTTP)
+        self._expect(TokenType.CALL)
+        self._expect(TokenType.NEWLINE)
+        self._expect(TokenType.INDENT)
 
-        while self._current().type != TokenType.RBRACE and self._current().type != TokenType.EOF:
-            curr = self._current()
-            if curr.type == TokenType.METHOD:
+        method = "GET"
+        url = ""
+        headers: Dict[str, str] = {}
+        payload_fields: Dict[str, ExprAST] = {}
+        output_target: Optional[str] = None
+        output_source: Optional[str] = None
+
+        while self._current().type not in (TokenType.DEDENT, TokenType.EOF):
+            attr_tok = self._current()
+            if attr_tok.type == TokenType.METHOD:
                 self._advance()
-                self._expect(TokenType.COLON)
-                m_tok = self._expect(TokenType.STRING)
-                self._expect(TokenType.SEMICOLON)
-                hc.method = m_tok.value
-            elif curr.type == TokenType.URL:
+                method = self._expect(TokenType.STRING).value.upper()
+                self._expect(TokenType.NEWLINE)
+            elif attr_tok.type == TokenType.URL:
                 self._advance()
-                self._expect(TokenType.COLON)
-                u_tok = self._expect(TokenType.STRING)
-                self._expect(TokenType.SEMICOLON)
-                hc.url = u_tok.value
-            elif curr.type == TokenType.HEADERS:
+                url = self._expect(TokenType.STRING).value
+                self._expect(TokenType.NEWLINE)
+            elif attr_tok.type == TokenType.HEADERS:
                 self._advance()
-                self._expect(TokenType.COLON)
-                self._expect(TokenType.LBRACE)
-                while self._current().type != TokenType.RBRACE:
-                    k_tok = self._expect(TokenType.STRING)
-                    self._expect(TokenType.COLON)
-                    v_tok = self._expect(TokenType.STRING)
-                    hc.headers[k_tok.value] = v_tok.value
-                    self._match(TokenType.COMMA)
-                self._expect(TokenType.RBRACE)
-                self._expect(TokenType.SEMICOLON)
-            elif curr.type == TokenType.PAYLOAD:
+                self._expect(TokenType.NEWLINE)
+                self._expect(TokenType.INDENT)
+                while self._current().type not in (TokenType.DEDENT, TokenType.EOF):
+                    k = self._expect(TokenType.STRING).value
+                    self._expect(TokenType.IS)
+                    v = self._expect(TokenType.STRING).value
+                    self._expect(TokenType.NEWLINE)
+                    headers[k] = v
+                self._expect(TokenType.DEDENT)
+            elif attr_tok.type == TokenType.PAYLOAD:
                 self._advance()
-                self._expect(TokenType.COLON)
-                self._expect(TokenType.LBRACE)
-                while self._current().type != TokenType.RBRACE:
-                    k_tok = self._expect(TokenType.STRING)
-                    self._expect(TokenType.COLON)
-                    val_expr = self._parse_expr()
-                    hc.payload_fields[k_tok.value] = val_expr
-                    self._match(TokenType.COMMA)
-                self._expect(TokenType.RBRACE)
-                self._expect(TokenType.SEMICOLON)
-            elif curr.type == TokenType.OUTPUT:
+                self._expect(TokenType.NEWLINE)
+                self._expect(TokenType.INDENT)
+                while self._current().type not in (TokenType.DEDENT, TokenType.EOF):
+                    k = self._expect(TokenType.STRING).value
+                    self._expect(TokenType.FROM)
+                    v_expr = self._parse_expr()
+                    self._expect(TokenType.NEWLINE)
+                    payload_fields[k] = v_expr
+                self._expect(TokenType.DEDENT)
+            elif attr_tok.type == TokenType.SAVE:
                 self._advance()
-                self._expect(TokenType.COLON)
-                out_tgt = self._expect_identifier_name()
-                self._expect(TokenType.LEFT_ARROW)
-                out_src = self._expect_identifier_name()
-                self._expect(TokenType.SEMICOLON)
-                hc.output_target = out_tgt.value
-                hc.output_source = out_src.value
+                output_source = self._expect_identifier_name().value
+                self._expect(TokenType.AS)
+                output_target = self._expect_identifier_name().value
+                self._expect(TokenType.NEWLINE)
             else:
                 raise FlowSpecSyntaxError(
-                    f"Unexpected token '{curr.value}' inside http_connector",
-                    curr.line,
-                    curr.column,
-                    curr.value,
+                    f"Unexpected token '{attr_tok.value}' inside http call block.",
+                    attr_tok.line,
+                    attr_tok.column,
+                    attr_tok.value,
                 )
 
-        self._expect(TokenType.RBRACE)
-        return hc
+        self._expect(TokenType.DEDENT)
+        return HttpConnectorAST(
+            method=method,
+            url=url,
+            headers=headers,
+            payload_fields=payload_fields,
+            output_target=output_target,
+            output_source=output_source,
+            line=http_tok.line,
+            column=http_tok.column,
+        )
 
-    def _parse_gateway_decl(self, lane_name: Optional[str]) -> GatewayAST:
-        gw_tok = self._advance()
-        id_tok = self._expect_identifier_name()
-        name_tok = self._match(TokenType.STRING)
-        node_name = name_tok.value if name_tok else id_tok.value
+    def _parse_gateway_kind(self) -> Tuple[Token, str]:
+        tok = self._advance()
+        if tok.type == TokenType.DECISION:
+            return tok, "exclusive_gateway"
+        if tok.type == TokenType.PARALLEL:
+            self._expect(TokenType.SPLIT)
+            return tok, "parallel_gateway"
+        self._expect(TokenType.SPLIT)
+        return tok, "inclusive_gateway"
 
-        self._expect(TokenType.LBRACE)
+    def _parse_gateway(self, lane: Optional[str]) -> GatewayAST:
+        gw_tok, gw_kind = self._parse_gateway_kind()
+        display_name, node_id = self._parse_name_and_id()
+        self._expect(TokenType.NEWLINE)
+
         branches: List[GatewayBranchAST] = []
         transitions: List[str] = []
 
-        while self._current().type != TokenType.RBRACE and self._current().type != TokenType.EOF:
-            curr = self._current()
-            if curr.type == TokenType.WHEN:
-                self._advance()
-                self._expect(TokenType.LPAREN)
-                cond = self._parse_expr()
-                self._expect(TokenType.RPAREN)
-                self._expect(TokenType.ARROW)
-                tgt = self._expect_identifier_name()
-                self._expect(TokenType.SEMICOLON)
-                branches.append(
-                    GatewayBranchAST(
-                        branch_kind="when",
-                        target_id=tgt.value,
-                        condition=cond,
-                        line=curr.line,
-                        column=curr.column,
+        if self._match(TokenType.INDENT):
+            while self._current().type not in (TokenType.DEDENT, TokenType.EOF):
+                b_tok = self._current()
+                if b_tok.type == TokenType.IF:
+                    self._advance()
+                    cond_expr = self._parse_expr()
+                    self._expect(TokenType.GO)
+                    self._expect(TokenType.TO)
+                    target_tok = self._expect_identifier_name()
+                    self._expect(TokenType.NEWLINE)
+                    branches.append(
+                        GatewayBranchAST(
+                            branch_kind="when",
+                            target_id=target_tok.value,
+                            condition=cond_expr,
+                            line=b_tok.line,
+                            column=b_tok.column,
+                        )
                     )
-                )
-                transitions.append(tgt.value)
-            elif curr.type == TokenType.DEFAULT:
-                self._advance()
-                self._expect(TokenType.ARROW)
-                tgt = self._expect_identifier_name()
-                self._expect(TokenType.SEMICOLON)
-                branches.append(
-                    GatewayBranchAST(
-                        branch_kind="default",
-                        target_id=tgt.value,
-                        condition=None,
-                        line=curr.line,
-                        column=curr.column,
+                    transitions.append(target_tok.value)
+                elif b_tok.type == TokenType.OTHERWISE:
+                    self._advance()
+                    self._expect(TokenType.GO)
+                    self._expect(TokenType.TO)
+                    target_tok = self._expect_identifier_name()
+                    self._expect(TokenType.NEWLINE)
+                    branches.append(
+                        GatewayBranchAST(
+                            branch_kind="default",
+                            target_id=target_tok.value,
+                            line=b_tok.line,
+                            column=b_tok.column,
+                        )
                     )
-                )
-                transitions.append(tgt.value)
-            elif curr.type == TokenType.BRANCH:
-                self._advance()
-                self._expect(TokenType.ARROW)
-                tgt = self._expect_identifier_name()
-                self._expect(TokenType.SEMICOLON)
-                branches.append(
-                    GatewayBranchAST(
-                        branch_kind="branch",
-                        target_id=tgt.value,
-                        condition=None,
-                        line=curr.line,
-                        column=curr.column,
+                    transitions.append(target_tok.value)
+                elif b_tok.type == TokenType.BRANCH:
+                    self._advance()
+                    self._expect(TokenType.TO)
+                    target_tok = self._expect_identifier_name()
+                    self._expect(TokenType.NEWLINE)
+                    branches.append(
+                        GatewayBranchAST(
+                            branch_kind="branch",
+                            target_id=target_tok.value,
+                            line=b_tok.line,
+                            column=b_tok.column,
+                        )
                     )
-                )
-                transitions.append(tgt.value)
-            elif curr.type == TokenType.ARROW:
-                self._advance()
-                tgt = self._expect_identifier_name()
-                self._expect(TokenType.SEMICOLON)
-                branches.append(
-                    GatewayBranchAST(
-                        branch_kind="branch",
-                        target_id=tgt.value,
-                        condition=None,
-                        line=curr.line,
-                        column=curr.column,
+                    transitions.append(target_tok.value)
+                elif b_tok.type == TokenType.NEXT:
+                    self._advance()
+                    self._expect(TokenType.IS)
+                    target_tok = self._expect_identifier_name()
+                    self._expect(TokenType.NEWLINE)
+                    branches.append(
+                        GatewayBranchAST(
+                            branch_kind="branch",
+                            target_id=target_tok.value,
+                            line=b_tok.line,
+                            column=b_tok.column,
+                        )
                     )
-                )
-                transitions.append(tgt.value)
-            else:
-                raise FlowSpecSyntaxError(
-                    f"Unexpected token '{curr.value}' inside gateway '{id_tok.value}'",
-                    curr.line,
-                    curr.column,
-                    curr.value,
-                )
+                    transitions.append(target_tok.value)
+                else:
+                    raise FlowSpecSyntaxError(
+                        f"Unexpected token '{b_tok.value}' inside gateway '{node_id}'.",
+                        b_tok.line,
+                        b_tok.column,
+                        b_tok.value,
+                    )
+            self._expect(TokenType.DEDENT)
 
-        self._expect(TokenType.RBRACE)
         return GatewayAST(
-            id=id_tok.value,
-            name=node_name,
-            kind=gw_tok.value,
-            lane=lane_name,
+            id=node_id,
+            name=display_name,
+            kind=gw_kind,
+            lane=lane,
             transitions=transitions,
             branches=branches,
             line=gw_tok.line,
@@ -468,87 +561,103 @@ class FlowSpecParser:
 
     def _parse_logical_or(self) -> ExprAST:
         left = self._parse_logical_and()
-        while tok := self._match(TokenType.OP_OR):
+        while self._current().type == TokenType.OP_OR:
+            op_tok = self._advance()
             right = self._parse_logical_and()
-            left = BinaryExprAST(operator="||", left=left, right=right, line=tok.line, column=tok.column)
+            left = BinaryExprAST(
+                operator="||", left=left, right=right, line=op_tok.line, column=op_tok.column
+            )
         return left
 
     def _parse_logical_and(self) -> ExprAST:
         left = self._parse_equality()
-        while tok := self._match(TokenType.OP_AND):
+        while self._current().type == TokenType.OP_AND:
+            op_tok = self._advance()
             right = self._parse_equality()
-            left = BinaryExprAST(operator="&&", left=left, right=right, line=tok.line, column=tok.column)
+            left = BinaryExprAST(
+                operator="&&", left=left, right=right, line=op_tok.line, column=op_tok.column
+            )
         return left
 
     def _parse_equality(self) -> ExprAST:
         left = self._parse_comparison()
-        while tok := self._match(TokenType.OP_EQ, TokenType.OP_NEQ):
+        while self._current().type == TokenType.IS:
+            op_tok = self._advance()
+            operator = "!=" if self._match(TokenType.OP_NOT) else "=="
             right = self._parse_comparison()
             left = BinaryExprAST(
-                operator=tok.value, left=left, right=right, line=tok.line, column=tok.column
+                operator=operator, left=left, right=right, line=op_tok.line, column=op_tok.column
             )
         return left
 
     def _parse_comparison(self) -> ExprAST:
         left = self._parse_term()
-        while tok := self._match(TokenType.OP_LT, TokenType.OP_LTE, TokenType.OP_GT, TokenType.OP_GTE):
+        while self._current().type in (
+            TokenType.OP_LT,
+            TokenType.OP_LTE,
+            TokenType.OP_GT,
+            TokenType.OP_GTE,
+        ):
+            op_tok = self._advance()
             right = self._parse_term()
             left = BinaryExprAST(
-                operator=tok.value, left=left, right=right, line=tok.line, column=tok.column
+                operator=op_tok.value, left=left, right=right, line=op_tok.line, column=op_tok.column
             )
         return left
 
     def _parse_term(self) -> ExprAST:
         left = self._parse_factor()
-        while tok := self._match(TokenType.OP_PLUS, TokenType.OP_MINUS):
+        while self._current().type in (TokenType.OP_PLUS, TokenType.OP_MINUS):
+            op_tok = self._advance()
             right = self._parse_factor()
             left = BinaryExprAST(
-                operator=tok.value, left=left, right=right, line=tok.line, column=tok.column
+                operator=op_tok.value, left=left, right=right, line=op_tok.line, column=op_tok.column
             )
         return left
 
     def _parse_factor(self) -> ExprAST:
         left = self._parse_unary()
-        while tok := self._match(TokenType.OP_MUL, TokenType.OP_DIV):
+        while self._current().type in (TokenType.OP_MUL, TokenType.OP_DIV):
+            op_tok = self._advance()
             right = self._parse_unary()
             left = BinaryExprAST(
-                operator=tok.value, left=left, right=right, line=tok.line, column=tok.column
+                operator=op_tok.value, left=left, right=right, line=op_tok.line, column=op_tok.column
             )
         return left
 
     def _parse_unary(self) -> ExprAST:
-        if tok := self._match(TokenType.OP_NOT, TokenType.OP_MINUS):
-            op_str = "!" if tok.type == TokenType.OP_NOT else "-"
+        if self._current().type in (TokenType.OP_NOT, TokenType.OP_MINUS):
+            op_tok = self._advance()
             operand = self._parse_unary()
-            return UnaryExprAST(operator=op_str, operand=operand, line=tok.line, column=tok.column)
+            op = "!" if op_tok.type == TokenType.OP_NOT else "-"
+            return UnaryExprAST(operator=op, operand=operand, line=op_tok.line, column=op_tok.column)
         return self._parse_primary()
 
     def _parse_primary(self) -> ExprAST:
         tok = self._current()
-        if self._match(TokenType.LPAREN):
-            expr = self._parse_expr()
-            self._expect(TokenType.RPAREN)
-            return expr
-        if self._match(TokenType.BOOLEAN):
-            return LiteralAST(
-                value=(tok.value.lower() == "true"),
-                literal_type="boolean",
-                line=tok.line,
-                column=tok.column,
-            )
-        if self._match(TokenType.NUMBER):
-            num_val: int | float = float(tok.value) if "." in tok.value else int(tok.value)
-            return LiteralAST(value=num_val, literal_type="number", line=tok.line, column=tok.column)
-        if self._match(TokenType.STRING):
+        if tok.type == TokenType.NUMBER:
+            self._advance()
+            val = float(tok.value) if "." in tok.value else int(tok.value)
+            return LiteralAST(value=val, literal_type="number", line=tok.line, column=tok.column)
+        if tok.type == TokenType.STRING:
+            self._advance()
             return LiteralAST(value=tok.value, literal_type="string", line=tok.line, column=tok.column)
+        if tok.type == TokenType.BOOLEAN:
+            self._advance()
+            return LiteralAST(
+                value=(tok.value == "true"), literal_type="boolean", line=tok.line, column=tok.column
+            )
         if tok.type in IDENTIFIER_LIKE_TOKENS:
             self._advance()
             return IdentifierAST(name=tok.value, line=tok.line, column=tok.column)
-
+        if tok.type == TokenType.LPAREN:
+            self._advance()
+            expr = self._parse_expr()
+            self._expect(TokenType.RPAREN)
+            return expr
         raise FlowSpecSyntaxError(
-            f"Unexpected token '{tok.value}' ({tok.type.value}) in expression",
+            f"Unexpected token '{tok.value}' ({tok.type.value}) in expression.",
             tok.line,
             tok.column,
             tok.value,
         )
-

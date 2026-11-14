@@ -1,113 +1,136 @@
-"""Vanilla Python Lexical Analyzer (Chomsky Type 3 Regular Expression Scanner) for FlowSpec DSL."""
+"""Vanilla Python Lexical Analyzer (Chomsky Type 3 Scanner with strict indentation) for FlowSpec DSL."""
 
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 
 class TokenType(str, Enum):
     PROCESS = "PROCESS"
     LANE = "LANE"
+    AS = "AS"
     START = "START"
     END = "END"
-    USER_TASK = "USER_TASK"
-    SERVICE_TASK = "SERVICE_TASK"
-    SCRIPT_TASK = "SCRIPT_TASK"
-    MANUAL_TASK = "MANUAL_TASK"
-    BUSINESS_RULE_TASK = "BUSINESS_RULE_TASK"
-    CALL_ACTIVITY = "CALL_ACTIVITY"
-    EXCLUSIVE_GATEWAY = "EXCLUSIVE_GATEWAY"
-    PARALLEL_GATEWAY = "PARALLEL_GATEWAY"
-    INCLUSIVE_GATEWAY = "INCLUSIVE_GATEWAY"
-
-    FORM_FIELD = "FORM_FIELD"
-    FORM_REF = "FORM_REF"
-    DELEGATE_CLASS = "DELEGATE_CLASS"
-    DECISION_REF = "DECISION_REF"
-    CALLED_ELEMENT = "CALLED_ELEMENT"
+    USER = "USER"
+    SERVICE = "SERVICE"
     SCRIPT = "SCRIPT"
+    MANUAL = "MANUAL"
+    BUSINESS = "BUSINESS"
+    RULE = "RULE"
+    CALL = "CALL"
+    ACTIVITY = "ACTIVITY"
+    TASK = "TASK"
+    DECISION = "DECISION"
+    PARALLEL = "PARALLEL"
+    INCLUSIVE = "INCLUSIVE"
+    SPLIT = "SPLIT"
+
+    ASK = "ASK"
+    LABELED = "LABELED"
+    USE = "USE"
+    FORM = "FORM"
+    DELEGATE = "DELEGATE"
+    DECIDE = "DECIDE"
+    INTO = "INTO"
+    SET = "SET"
     INPUT = "INPUT"
     OUTPUT = "OUTPUT"
-    HTTP_CONNECTOR = "HTTP_CONNECTOR"
+    RUN = "RUN"
+    HTTP = "HTTP"
     METHOD = "METHOD"
     URL = "URL"
     HEADERS = "HEADERS"
     PAYLOAD = "PAYLOAD"
+    WITH = "WITH"
+    SAVE = "SAVE"
+    FROM = "FROM"
+    NEXT = "NEXT"
 
-    WHEN = "WHEN"
-    DEFAULT = "DEFAULT"
+    IF = "IF"
+    OTHERWISE = "OTHERWISE"
+    GO = "GO"
+    TO = "TO"
     BRANCH = "BRANCH"
+
+    IS = "IS"
+    OP_AND = "OP_AND"
+    OP_OR = "OP_OR"
+    OP_NOT = "OP_NOT"
+    OP_LTE = "OP_LTE"
+    OP_GTE = "OP_GTE"
+    OP_LT = "OP_LT"
+    OP_GT = "OP_GT"
+    OP_PLUS = "OP_PLUS"
+    OP_MINUS = "OP_MINUS"
+    OP_MUL = "OP_MUL"
+    OP_DIV = "OP_DIV"
+    LPAREN = "LPAREN"
+    RPAREN = "RPAREN"
 
     IDENTIFIER = "IDENTIFIER"
     STRING = "STRING"
     NUMBER = "NUMBER"
     BOOLEAN = "BOOLEAN"
 
-    LBRACE = "LBRACE"
-    RBRACE = "RBRACE"
-    LPAREN = "LPAREN"
-    RPAREN = "RPAREN"
-    COLON = "COLON"
-    SEMICOLON = "SEMICOLON"
-    COMMA = "COMMA"
-    ARROW = "ARROW"
-    LEFT_ARROW = "LEFT_ARROW"
-
-    OP_EQ = "OP_EQ"
-    OP_NEQ = "OP_NEQ"
-    OP_LTE = "OP_LTE"
-    OP_GTE = "OP_GTE"
-    OP_LT = "OP_LT"
-    OP_GT = "OP_GT"
-    OP_AND = "OP_AND"
-    OP_OR = "OP_OR"
-    OP_NOT = "OP_NOT"
-    OP_PLUS = "OP_PLUS"
-    OP_MINUS = "OP_MINUS"
-    OP_MUL = "OP_MUL"
-    OP_DIV = "OP_DIV"
-
+    INDENT = "INDENT"
+    DEDENT = "DEDENT"
+    NEWLINE = "NEWLINE"
     EOF = "EOF"
 
 
 KEYWORDS: Dict[str, TokenType] = {
     "process": TokenType.PROCESS,
     "lane": TokenType.LANE,
+    "as": TokenType.AS,
     "start": TokenType.START,
     "end": TokenType.END,
-    "user_task": TokenType.USER_TASK,
-    "service_task": TokenType.SERVICE_TASK,
-    "script_task": TokenType.SCRIPT_TASK,
-    "manual_task": TokenType.MANUAL_TASK,
-    "business_rule_task": TokenType.BUSINESS_RULE_TASK,
-    "call_activity": TokenType.CALL_ACTIVITY,
-    "exclusive_gateway": TokenType.EXCLUSIVE_GATEWAY,
-    "parallel_gateway": TokenType.PARALLEL_GATEWAY,
-    "inclusive_gateway": TokenType.INCLUSIVE_GATEWAY,
-    "form_field": TokenType.FORM_FIELD,
-    "form_ref": TokenType.FORM_REF,
-    "delegate_class": TokenType.DELEGATE_CLASS,
-    "decision_ref": TokenType.DECISION_REF,
-    "called_element": TokenType.CALLED_ELEMENT,
+    "user": TokenType.USER,
+    "service": TokenType.SERVICE,
     "script": TokenType.SCRIPT,
+    "manual": TokenType.MANUAL,
+    "business": TokenType.BUSINESS,
+    "rule": TokenType.RULE,
+    "call": TokenType.CALL,
+    "activity": TokenType.ACTIVITY,
+    "task": TokenType.TASK,
+    "decision": TokenType.DECISION,
+    "parallel": TokenType.PARALLEL,
+    "inclusive": TokenType.INCLUSIVE,
+    "split": TokenType.SPLIT,
+    "ask": TokenType.ASK,
+    "labeled": TokenType.LABELED,
+    "use": TokenType.USE,
+    "form": TokenType.FORM,
+    "delegate": TokenType.DELEGATE,
+    "decide": TokenType.DECIDE,
+    "into": TokenType.INTO,
+    "set": TokenType.SET,
     "input": TokenType.INPUT,
     "output": TokenType.OUTPUT,
-    "http_connector": TokenType.HTTP_CONNECTOR,
+    "run": TokenType.RUN,
+    "http": TokenType.HTTP,
     "method": TokenType.METHOD,
     "url": TokenType.URL,
     "headers": TokenType.HEADERS,
     "payload": TokenType.PAYLOAD,
-    "when": TokenType.WHEN,
-    "default": TokenType.DEFAULT,
+    "with": TokenType.WITH,
+    "save": TokenType.SAVE,
+    "from": TokenType.FROM,
+    "next": TokenType.NEXT,
+    "if": TokenType.IF,
+    "otherwise": TokenType.OTHERWISE,
+    "go": TokenType.GO,
+    "to": TokenType.TO,
     "branch": TokenType.BRANCH,
-    "true": TokenType.BOOLEAN,
-    "false": TokenType.BOOLEAN,
+    "is": TokenType.IS,
     "and": TokenType.OP_AND,
     "or": TokenType.OP_OR,
     "not": TokenType.OP_NOT,
+    "true": TokenType.BOOLEAN,
+    "false": TokenType.BOOLEAN,
 }
 
 
@@ -128,7 +151,7 @@ class Token:
 
 
 class FlowSpecLexicalError(Exception):
-    """Raised when the FlowSpec lexer encounters an illegal character or unterminated string."""
+    """Raised when the FlowSpec lexer encounters an illegal character, invalid indentation, or unterminated string."""
 
     def __init__(self, message: str, line: int, column: int):
         super().__init__(f"[Line {line}, Col {column}] LexicalError: {message}")
@@ -139,30 +162,17 @@ class FlowSpecLexicalError(Exception):
 
 TOKEN_SPECIFICATION = [
     ("COMMENT", r"//[^\n]*|#[^\n]*"),
-    ("NEWLINE", r"\n"),
-    ("SKIP", r"[ \t\r]+"),
-    ("ARROW", r"->"),
-    ("LEFT_ARROW", r"<-"),
-    ("OP_EQ", r"=="),
-    ("OP_NEQ", r"!="),
+    ("SKIP", r"[ \r]+"),
     ("OP_LTE", r"<="),
     ("OP_GTE", r">="),
-    ("OP_AND", r"&&"),
-    ("OP_OR", r"\|\|"),
     ("OP_LT", r"<"),
     ("OP_GT", r">"),
-    ("OP_NOT", r"!"),
     ("OP_PLUS", r"\+"),
     ("OP_MINUS", r"-"),
     ("OP_MUL", r"\*"),
     ("OP_DIV", r"/"),
-    ("LBRACE", r"\{"),
-    ("RBRACE", r"\}"),
     ("LPAREN", r"\("),
     ("RPAREN", r"\)"),
-    ("COLON", r":"),
-    ("SEMICOLON", r";"),
-    ("COMMA", r","),
     ("STRING", r'"(?:\\.|[^"\\])*"'),
     ("NUMBER", r"\d+(?:\.\d+)?"),
     ("IDENTIFIER", r"[A-Za-z_][A-Za-z0-9_]*"),
@@ -175,38 +185,91 @@ MASTER_REGEX = re.compile(
 
 
 class FlowSpecLexer:
-    """Tokenizes FlowSpec DSL source code into a stream of Tokens."""
+    """Tokenizes natural indentation-based FlowSpec DSL source code into a stream of Tokens."""
 
     def tokenize(self, source_code: str) -> List[Token]:
         tokens: List[Token] = []
-        line_num = 1
-        line_start = 0
+        indent_stack: List[int] = [0]
+        paren_depth = 0
+        lines = source_code.splitlines()
 
-        for match in MASTER_REGEX.finditer(source_code):
-            kind = match.lastgroup
-            value = match.group()
-            column = match.start() - line_start + 1
+        for line_num, raw_line in enumerate(lines, start=1):
+            line = raw_line.rstrip("\r")
+            stripped = line.lstrip(" ")
 
-            if kind == "NEWLINE":
-                line_start = match.end()
-                line_num += 1
-                continue
-            if kind in ("SKIP", "COMMENT"):
-                continue
-            if kind == "MISMATCH":
+            if "\t" in line[: len(line) - len(stripped)]:
                 raise FlowSpecLexicalError(
-                    f"Unexpected character '{value}'", line=line_num, column=column
+                    "Tabs are not allowed for indentation; use spaces only.",
+                    line=line_num,
+                    column=1,
                 )
 
-            if kind == "STRING":
-                unquoted = value[1:-1].replace('\\"', '"').replace("\\n", "\n").replace("\\\\", "\\")
-                tokens.append(Token(TokenType.STRING, unquoted, line_num, column))
-            elif kind == "IDENTIFIER":
-                token_type = KEYWORDS.get(value, TokenType.IDENTIFIER)
-                tokens.append(Token(token_type, value, line_num, column))
-            else:
-                tokens.append(Token(TokenType[kind], value, line_num, column))
+            if not stripped or stripped.startswith("#") or stripped.startswith("//"):
+                continue
 
-        tokens.append(Token(TokenType.EOF, "", line_num, len(source_code) - line_start + 1))
+            indent = len(line) - len(stripped)
+            if paren_depth == 0:
+                if indent > indent_stack[-1]:
+                    indent_stack.append(indent)
+                    tokens.append(Token(TokenType.INDENT, "", line_num, 1))
+                elif indent < indent_stack[-1]:
+                    while indent < indent_stack[-1]:
+                        indent_stack.pop()
+                        tokens.append(Token(TokenType.DEDENT, "", line_num, 1))
+                    if indent != indent_stack[-1]:
+                        raise FlowSpecLexicalError(
+                            f"Inconsistent indentation level ({indent} spaces).",
+                            line=line_num,
+                            column=1,
+                        )
+
+            line_tokens_added = False
+            for match in MASTER_REGEX.finditer(line, pos=indent):
+                kind = match.lastgroup
+                value = match.group()
+                column = match.start() + 1
+
+                if kind in ("SKIP", "COMMENT"):
+                    continue
+                if kind == "MISMATCH":
+                    raise FlowSpecLexicalError(
+                        f"Unexpected character '{value}'", line=line_num, column=column
+                    )
+
+                if kind == "STRING":
+                    raw = value[1:-1]
+                    unescaped = (
+                        raw.replace('\\"', '"')
+                        .replace("\\n", "\n")
+                        .replace("\\t", "\t")
+                        .replace("\\\\", "\\")
+                    )
+                    tokens.append(Token(TokenType.STRING, unescaped, line_num, column))
+                    line_tokens_added = True
+                    continue
+
+                if kind == "IDENTIFIER":
+                    tok_type = KEYWORDS.get(value, TokenType.IDENTIFIER)
+                    tokens.append(Token(tok_type, value, line_num, column))
+                    line_tokens_added = True
+                    continue
+
+                tok_type = TokenType(kind)
+                if tok_type == TokenType.LPAREN:
+                    paren_depth += 1
+                elif tok_type == TokenType.RPAREN and paren_depth > 0:
+                    paren_depth -= 1
+
+                tokens.append(Token(tok_type, value, line_num, column))
+                line_tokens_added = True
+
+            if line_tokens_added and paren_depth == 0:
+                tokens.append(Token(TokenType.NEWLINE, "", line_num, len(line) + 1))
+
+        end_line = len(lines) + 1
+        while len(indent_stack) > 1:
+            indent_stack.pop()
+            tokens.append(Token(TokenType.DEDENT, "", end_line, 1))
+
+        tokens.append(Token(TokenType.EOF, "", end_line, 1))
         return tokens
-

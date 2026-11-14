@@ -153,20 +153,18 @@ def test_flowspec_compiler_and_type_checking() -> None:
     parser = FlowSpecParser()
     analyzer = FlowSpecSemanticAnalyzer()
 
-    invalid_flowspec = """
-    process testProc "Test Type Error" {
-      start Start_1 -> Task_1;
-      user_task Task_1 "Form Task" {
-        form_field visita: boolean "Visita realizada";
-        -> Gw_1;
-      }
-      exclusive_gateway Gw_1 "Check" {
-        when (visita < 100) -> End_1;
-        default -> End_Ghost;
-      }
-      end End_1;
-    }
-    """
+    invalid_flowspec = (
+        'process "Test Type Error" as testProc\n'
+        '  start "Start" as Start_1\n'
+        '    next is Task_1\n'
+        '  user task "Form Task" as Task_1\n'
+        '    ask boolean visita labeled "Visita realizada"\n'
+        '    next is Gw_1\n'
+        '  decision "Check" as Gw_1\n'
+        '    if visita < 100 go to End_1\n'
+        '    otherwise go to End_Ghost\n'
+        '  end "End" as End_1\n'
+    )
     ast = parser.parse(invalid_flowspec)
     sem = analyzer.analyze(ast)
 
@@ -174,6 +172,27 @@ def test_flowspec_compiler_and_type_checking() -> None:
     error_types = {e["type"] for e in sem.errors}
     assert "TYPE_MISMATCH" in error_types
     assert "UNDECLARED_NODE_REFERENCE" in error_types
+
+
+def test_flowspec_strict_indentation_errors() -> None:
+    parser = FlowSpecParser()
+
+    tab_indented = (
+        'process "Tab Error" as tabProc\n'
+        '\tstart "Start" as Start_1\n'
+    )
+    with pytest.raises(FlowSpecLexicalError):
+        parser.parse(tab_indented)
+
+    inconsistent_dedent = (
+        'process "Dedent Error" as dedentProc\n'
+        '  user task "Task" as Task_1\n'
+        '    ask boolean ok labeled "OK"\n'
+        '   next is End_1\n'
+        '  end "End" as End_1\n'
+    )
+    with pytest.raises(FlowSpecLexicalError):
+        parser.parse(inconsistent_dedent)
 
 
 def test_fastapi_endpoints_compile_and_simulate() -> None:
