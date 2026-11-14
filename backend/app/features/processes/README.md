@@ -49,7 +49,7 @@ When any error exists, `ImportResult.document` is `None`.
 
 | Code | Severity | Meaning |
 | --- | --- | --- |
-| `INVALID_UPLOAD` | error | Request rule: exactly one `.bpmn`/`.xml` file |
+| `INVALID_UPLOAD` | error | Request rule: the file extension must be `.bpmn` or `.xml` |
 | `XML_MALFORMED` | error | Not well-formed XML, or it declares a DTD/entities |
 | `NOT_BPMN` | error | Root is not `<definitions>` in the BPMN 2.0 model namespace |
 | `NO_PROCESS` | error | No `<process>` in the document |
