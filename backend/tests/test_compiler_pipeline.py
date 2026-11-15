@@ -243,3 +243,43 @@ def test_fastapi_endpoints_compile_and_simulate() -> None:
     assert len(sim_true_data["http_requests_simulated"]) == 1
     assert sim_true_data["http_requests_simulated"][0]["payload"] == {"TicketIdVisita": "TCK-999"}
 
+    http_job_rb = data["generated_ruby"]["files"]["app/jobs/actualizar_estado_del_ticket_de_visita_en_fsm_http_job.rb"]
+    assert 'ENV.fetch("ACTUALIZAR_ESTADO_DEL_TICKET_DE_VISITA_EN_FSM_HTTP_JOB_URL"' in http_job_rb
+    assert "http.open_timeout = OPEN_TIMEOUT" in http_job_rb
+    assert "http.read_timeout = READ_TIMEOUT" in http_job_rb
+    assert "sidekiq_options queue: :default, retry: 3" in http_job_rb
+    assert "Jobs::ActualizarEstadoDelTicketDeVisitaEnFsmHttpJob.perform_async" in workflow_rb
+    assert "@enqueued_jobs <<" in workflow_rb
+    assert 'ENV.fetch("REDIS_URL"' in data["generated_ruby"]["files"]["config/initializers/sidekiq.rb"]
+    assert ".env.example" in data["generated_ruby"]["files"]
+
+
+def test_http_service_task_with_downstream_dependency_stays_synchronous() -> None:
+    flowspec = (
+        'process "HTTP Dependent" as httpDep\n'
+        '  start "Inicio" as start_1\n'
+        '    next is task_1\n'
+        '  service task "Consultar API" as task_1\n'
+        '    http call\n'
+        '      method "GET"\n'
+        '      url "http://localhost:9095/status"\n'
+        '      save response as api_status\n'
+        '    next is decision_1\n'
+        '  decision "Validar estado" as decision_1\n'
+        '    if api_status is "OK" go to end_1\n'
+        '    otherwise go to end_2\n'
+        '  end "Aceptado" as end_1\n'
+        '  end "Rechazado" as end_2\n'
+    )
+    parser = FlowSpecParser()
+    analyzer = FlowSpecSemanticAnalyzer()
+    generator = RubyCodeGenerator()
+
+    ast = parser.parse(flowspec)
+    sem = analyzer.analyze(ast)
+    assert sem.valid is True
+
+    ruby_out = generator.generate(ast=ast, variable_symbols=sem.variable_symbols)
+    assert "Jobs::ConsultarApiHttpJob.new.perform(@context)" in ruby_out.workflow_code
+    assert "perform_async" not in ruby_out.workflow_code
+

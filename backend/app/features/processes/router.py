@@ -79,6 +79,7 @@ def compile_bpmn_process(
         ast=process_ast,
         sample_payload=semantic_result.data_contract.get("sample_payload", {}),
         acyclic_paths=formal_report.acyclic_paths,
+        variable_symbols=semantic_result.variable_symbols,
     )
 
     if format == "zip":

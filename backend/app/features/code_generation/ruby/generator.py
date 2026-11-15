@@ -28,6 +28,7 @@ from .templates.rails_templates import (
     DECISION_RULE_STUB_TEMPLATE,
     DELEGATE_SERVICE_TEMPLATE,
     ENV_DEVELOPMENT_TEMPLATE,
+    ENV_EXAMPLE_TEMPLATE,
     ENV_PRODUCTION_TEMPLATE,
     ENV_TEST_TEMPLATE,
     ENVIRONMENT_RB_TEMPLATE,
@@ -133,6 +134,7 @@ class RubyCodeGenerator:
         ast: ProcessAST,
         sample_payload: Optional[Dict[str, Any]] = None,
         acyclic_paths: Optional[List[List[str]]] = None,
+        variable_symbols: Optional[Dict[str, Any]] = None,
     ) -> RubyGenerationOutput:
         proc_snake = to_snake_case(ast.process_id)
         workflow_class_name = f"{to_pascal_case(ast.process_id)}Workflow"
@@ -153,6 +155,7 @@ class RubyCodeGenerator:
         sidekiq_jobs: Dict[str, str] = {}
         service_stubs: Dict[str, str] = {}
         decision_stubs: Dict[str, str] = {}
+        async_http_jobs: List[str] = []
         used_names: Dict[str, Set[str]] = {
             "forms": set(),
             "jobs": set(),
@@ -173,6 +176,8 @@ class RubyCodeGenerator:
                     service_stubs,
                     decision_stubs,
                     used_names,
+                    variable_symbols=variable_symbols or {},
+                    async_http_jobs=async_http_jobs,
                 )
             )
 
@@ -191,6 +196,7 @@ class RubyCodeGenerator:
             start_node_id=start_node_id,
             sample_payload=sample_payload or {},
             acyclic_paths=acyclic_paths or [],
+            async_http_jobs=async_http_jobs,
         )
 
         scaffold_files = self._build_rails_scaffold(
@@ -221,6 +227,8 @@ class RubyCodeGenerator:
         service_stubs: Dict[str, str],
         decision_stubs: Dict[str, str],
         used_names: Dict[str, Set[str]],
+        variable_symbols: Optional[Dict[str, Any]] = None,
+        async_http_jobs: Optional[List[str]] = None,
     ) -> str:
         lines: List[str] = [f"    # [{node.kind}] {node.name} ({node.id})"]
         lines.append(f"    def {method_name}")
@@ -249,7 +257,18 @@ class RubyCodeGenerator:
                 job_cls = f"{to_pascal_case(base)}HttpJob"
                 job_path = f"app/jobs/{base}_http_job.rb"
                 sidekiq_jobs[job_path] = self._build_sidekiq_http_job_code(node, job_cls)
-                lines.append(f"      @context = Jobs::{job_cls}.new.perform(@context)")
+                out_var = node.http_connector.output_target
+                sym = (variable_symbols or {}).get(out_var) if out_var else None
+                output_is_used = bool(sym and getattr(sym, "used_in", []))
+                if output_is_used:
+                    lines.append(f"      @context = Jobs::{job_cls}.new.perform(@context)")
+                else:
+                    lines.append(f"      jid = Jobs::{job_cls}.perform_async(@context.transform_keys(&:to_s))")
+                    lines.append(
+                        f'      @enqueued_jobs << {{ node_id: "{node.id}", job_class: "Jobs::{job_cls}", jid: jid }}'
+                    )
+                    if async_http_jobs is not None:
+                        async_http_jobs.append(job_cls)
 
             if node.delegate_class:
                 short_cls = node.delegate_class.split(".")[-1]
@@ -410,6 +429,7 @@ class RubyCodeGenerator:
             node_id=node.id,
             node_name=node.name,
             job_class_name=job_cls,
+            env_prefix=to_snake_case(job_cls).upper(),
             url=hc.url,
             method=hc.method,
             headers_ruby=headers_ruby,
@@ -441,6 +461,7 @@ class RubyCodeGenerator:
         start_node_id: str,
         sample_payload: Dict[str, Any],
         acyclic_paths: List[List[str]],
+        async_http_jobs: Optional[List[str]] = None,
     ) -> str:
         payload_items: List[str] = []
         for k, v in sample_payload.items():
@@ -453,6 +474,14 @@ class RubyCodeGenerator:
         sample_payload_ruby = "{ " + ", ".join(payload_items) + " }" if payload_items else "{}"
 
         path_specs: List[str] = []
+        if async_http_jobs:
+            path_specs.append(
+                '    it "reports Sidekiq enqueue status consistently when HTTP jobs run asynchronously" do\n'
+                '      result = described_class.call(sample_payload)\n'
+                '      expected_status = result[:enqueued_jobs].empty? ? "completed" : "enqueued"\n'
+                '      expect(result[:status]).to eq(expected_status)\n'
+                "    end"
+            )
         for idx, path in enumerate(acyclic_paths[:5], start=1):
             end_node = path[-1] if path else start_node_id
             seq_str = " -> ".join(path)
@@ -482,6 +511,7 @@ class RubyCodeGenerator:
             "Gemfile": GEMFILE_TEMPLATE,
             "Rakefile": RAKEFILE_TEMPLATE,
             "config.ru": CONFIG_RU_TEMPLATE,
+            ".env.example": ENV_EXAMPLE_TEMPLATE,
             ".gitignore": RAILS_GITIGNORE_TEMPLATE,
             "README.md": RAILS_README_TEMPLATE.format(
                 app_module_name=app_module_name,

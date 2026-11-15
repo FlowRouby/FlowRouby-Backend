@@ -8,7 +8,7 @@ WORKFLOW_ORCHESTRATOR_TEMPLATE = """# frozen_string_literal: true
 
 module Workflows
   class {workflow_class_name}
-    attr_reader :context, :visited_nodes
+    attr_reader :context, :visited_nodes, :enqueued_jobs
 
     MAX_STEPS = 100
 
@@ -19,6 +19,7 @@ module Workflows
     def initialize(initial_context = {{}})
       @context = initial_context.transform_keys(&:to_sym)
       @visited_nodes = []
+      @enqueued_jobs = []
       @join_arrivals = Hash.new(0)
     end
 
@@ -35,7 +36,9 @@ module Workflows
 
       {{
         completed: true,
+        status: @enqueued_jobs.empty? ? "completed" : "enqueued",
         visited_nodes: @visited_nodes,
+        enqueued_jobs: @enqueued_jobs,
         context: @context
       }}
     end
@@ -80,8 +83,12 @@ module Jobs
   class {job_class_name}
     include Sidekiq::Job
 
-    ENDPOINT_URL = "{url}"
+    sidekiq_options queue: :default, retry: 3
+
+    ENDPOINT_URL = ENV.fetch("{env_prefix}_URL", "{url}")
     HTTP_METHOD = "{method}"
+    OPEN_TIMEOUT = ENV.fetch("HTTP_OPEN_TIMEOUT", "5").to_i
+    READ_TIMEOUT = ENV.fetch("HTTP_READ_TIMEOUT", "15").to_i
     DEFAULT_HEADERS = {headers_ruby}.freeze
 
     def perform(context = {{}})
@@ -89,9 +96,15 @@ module Jobs
       uri = URI.parse(ENDPOINT_URL)
       http = Net::HTTP.new(uri.host, uri.port)
       http.use_ssl = (uri.scheme == "https")
+      http.open_timeout = OPEN_TIMEOUT
+      http.read_timeout = READ_TIMEOUT
+
+      headers = DEFAULT_HEADERS.dup
+      auth_token = ENV["{env_prefix}_AUTH_TOKEN"]
+      headers["Authorization"] = "Bearer #{{auth_token}}" if auth_token && !auth_token.empty?
 
       request_class = Net::HTTP.const_get(HTTP_METHOD.capitalize)
-      request = request_class.new(uri.request_uri, DEFAULT_HEADERS)
+      request = request_class.new(uri.request_uri, headers)
 {payload_block}
       response = http.request(request)
       parsed_body = JSON.parse(response.body) rescue response.body
@@ -308,6 +321,21 @@ SIDEKIQ_YML_TEMPLATE = """# frozen_string_literal: true
 SIDEKIQ_INITIALIZER_TEMPLATE = """# frozen_string_literal: true
 
 require "sidekiq"
+
+redis_url = ENV.fetch("REDIS_URL", "redis://localhost:6379/0")
+
+Sidekiq.configure_server do |config|
+  config.redis = { url: redis_url }
+end
+
+Sidekiq.configure_client do |config|
+  config.redis = { url: redis_url }
+end
+"""
+
+ENV_EXAMPLE_TEMPLATE = """REDIS_URL=redis://localhost:6379/0
+HTTP_OPEN_TIMEOUT=5
+HTTP_READ_TIMEOUT=15
 """
 
 ROUTES_RB_TEMPLATE = """# frozen_string_literal: true
@@ -341,6 +369,9 @@ end
 
 SPEC_HELPER_TEMPLATE = """# frozen_string_literal: true
 
+require "sidekiq/testing"
+Sidekiq::Testing.fake!
+
 RSpec.configure do |config|
   config.expect_with :rspec do |expectations|
     expectations.include_chain_clauses_in_custom_matcher_descriptions = true
@@ -348,6 +379,10 @@ RSpec.configure do |config|
 
   config.mock_with :rspec do |mocks|
     mocks.verify_partial_doubles = true
+  end
+
+  config.before(:each) do
+    Sidekiq::Worker.clear_all
   end
 end
 """
@@ -367,8 +402,18 @@ Auto-generated Ruby on Rails + Sidekiq project for BPMN process `{process_id}` (
 ## Setup
 
 ```bash
+cp .env.example .env
 bundle install
 bundle exec rspec
+```
+
+## Running with Sidekiq (HTTP Service Tasks)
+
+HTTP service tasks whose output is not read by downstream nodes are enqueued via Sidekiq (`perform_async`). Make sure Redis is running and start both Rails and the Sidekiq worker:
+
+```bash
+redis-server
+bundle exec sidekiq -C config/sidekiq.yml
 bundle exec rails server
 ```
 
