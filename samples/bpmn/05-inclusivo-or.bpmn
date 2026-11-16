@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_Process_InclusivoOr" targetNamespace="http://flowrouby.dev/samples">
+  <bpmn:process id="Process_InclusivoOr" name="Notificación al cliente" isExecutable="true">
+    <bpmn:startEvent id="Start_Evento" name="Evento registrado">
+      <bpmn:outgoing>Flow_O1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:inclusiveGateway id="Gateway_Canales" name="¿Qué canales?">
+      <bpmn:incoming>Flow_O1</bpmn:incoming>
+      <bpmn:outgoing>Flow_O_Correo</bpmn:outgoing>
+      <bpmn:outgoing>Flow_O_Sms</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+    <bpmn:serviceTask id="Task_EnviarCorreo" name="Enviar correo">
+      <bpmn:incoming>Flow_O_Correo</bpmn:incoming>
+      <bpmn:outgoing>Flow_O2</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Task_EnviarSms" name="Enviar SMS">
+      <bpmn:incoming>Flow_O_Sms</bpmn:incoming>
+      <bpmn:outgoing>Flow_O3</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:inclusiveGateway id="Gateway_Reunir" name="">
+      <bpmn:incoming>Flow_O2</bpmn:incoming>
+      <bpmn:incoming>Flow_O3</bpmn:incoming>
+      <bpmn:outgoing>Flow_O4</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+    <bpmn:endEvent id="End_Notificado" name="Cliente notificado">
+      <bpmn:incoming>Flow_O4</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_O1" sourceRef="Start_Evento" targetRef="Gateway_Canales" />
+    <bpmn:sequenceFlow id="Flow_O_Correo" sourceRef="Gateway_Canales" targetRef="Task_EnviarCorreo" name="Correo">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${usar_correo == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_O_Sms" sourceRef="Gateway_Canales" targetRef="Task_EnviarSms" name="SMS">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${usar_sms == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_O2" sourceRef="Task_EnviarCorreo" targetRef="Gateway_Reunir" />
+    <bpmn:sequenceFlow id="Flow_O3" sourceRef="Task_EnviarSms" targetRef="Gateway_Reunir" />
+    <bpmn:sequenceFlow id="Flow_O4" sourceRef="Gateway_Reunir" targetRef="End_Notificado" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_Process_InclusivoOr">
+    <bpmndi:BPMNPlane id="BPMNPlane_Process_InclusivoOr" bpmnElement="Process_InclusivoOr">
+      <bpmndi:BPMNShape id="Start_Evento_di" bpmnElement="Start_Evento">
+        <dc:Bounds x="182" y="182" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Canales_di" bpmnElement="Gateway_Canales">
+        <dc:Bounds x="295" y="175" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_EnviarCorreo_di" bpmnElement="Task_EnviarCorreo">
+        <dc:Bounds x="420" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_EnviarSms_di" bpmnElement="Task_EnviarSms">
+        <dc:Bounds x="420" y="240" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Reunir_di" bpmnElement="Gateway_Reunir">
+        <dc:Bounds x="595" y="175" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_Notificado_di" bpmnElement="End_Notificado">
+        <dc:Bounds x="722" y="182" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_O1_di" bpmnElement="Flow_O1">
+        <di:waypoint x="218" y="200" />
+        <di:waypoint x="295" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_O_Correo_di" bpmnElement="Flow_O_Correo">
+        <di:waypoint x="320" y="175" />
+        <di:waypoint x="320" y="120" />
+        <di:waypoint x="420" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_O_Sms_di" bpmnElement="Flow_O_Sms">
+        <di:waypoint x="320" y="225" />
+        <di:waypoint x="320" y="280" />
+        <di:waypoint x="420" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_O2_di" bpmnElement="Flow_O2">
+        <di:waypoint x="520" y="120" />
+        <di:waypoint x="620" y="120" />
+        <di:waypoint x="620" y="175" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_O3_di" bpmnElement="Flow_O3">
+        <di:waypoint x="520" y="280" />
+        <di:waypoint x="620" y="280" />
+        <di:waypoint x="620" y="225" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_O4_di" bpmnElement="Flow_O4">
+        <di:waypoint x="645" y="200" />
+        <di:waypoint x="722" y="200" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
