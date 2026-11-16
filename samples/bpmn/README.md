@@ -12,6 +12,8 @@ Los resultados de esta página se obtuvieron llamando a la API real (`/import`, 
 | `04-paralelo-and.bpmn` | Ramas paralelas: se aceptan todos los órdenes de ejecución | D0 a D6, acepta D6 |
 | `05-inclusivo-or.bpmn` | Compuerta inclusiva: una rama, la otra o ambas | D0 a D5, acepta D4 |
 
+La API los expone en `GET /api/v1/processes/samples` (listado) y `GET /api/v1/processes/samples/{id}` (XML), con el nombre del archivo sin extensión como `id`.
+
 Las compuertas aparecen en `bpmn_node_ids` pero no son símbolos del alfabeto. Las rutas de `/validate-trace` solo llevan inicio, tareas y fin.
 
 ## 01-secuencial.bpmn

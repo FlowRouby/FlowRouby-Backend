@@ -23,6 +23,11 @@ from ..formal_analysis.services.trace_validation_service import (
 )
 from .dependencies import import_analyzable_process, import_bpmn_document
 from .import_response import build_import_response
+from .samples.repository import (
+    FileSystemSampleProcessRepository,
+    SampleProcessRepository,
+    default_samples_directory,
+)
 from .services.process_service import ProcessImportService
 
 router = APIRouter(prefix="/api/v1/processes", tags=["processes"])
@@ -35,6 +40,40 @@ flowspec_parser = FlowSpecParser()
 semantic_analyzer = FlowSpecSemanticAnalyzer()
 ruby_generator = RubyCodeGenerator()
 simulator = FlowSpecSimulator()
+sample_repository: SampleProcessRepository = FileSystemSampleProcessRepository(default_samples_directory())
+
+
+@router.get("/samples", summary="List the demo BPMN diagrams")
+def list_sample_processes() -> Dict[str, Any]:
+    """Catalog of the demo diagrams that can be loaded into the editor."""
+    return {
+        "samples": [
+            {"id": s.id, "filename": s.filename, "name": s.name, "process_id": s.process_id}
+            for s in sample_repository.list()
+        ]
+    }
+
+
+@router.get(
+    "/samples/{sample_id}",
+    summary="Download the BPMN XML of a demo diagram",
+    response_class=Response,
+    responses={
+        200: {"content": {"application/xml": {}}, "description": "The raw BPMN 2.0 XML."},
+        404: {"description": "Unknown sample id."},
+    },
+)
+def get_sample_process(sample_id: str) -> Response:
+    """Returns the raw BPMN XML of one demo diagram, ready for bpmn-js."""
+    xml = sample_repository.get_xml(sample_id)
+    if xml is None:
+        raise HTTPException(status_code=404, detail={"message": f"Sample '{sample_id}' was not found."})
+    filename = next((s.filename for s in sample_repository.list() if s.id == sample_id), f"{sample_id}.bpmn")
+    return Response(
+        content=xml,
+        media_type="application/xml",
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
+    )
 
 
 @router.post(
