@@ -38,7 +38,7 @@
 
 ## Tasks
 - [x] T1 `DFA.walk()` + `accepts()` delegating to it; unit tests incl. old-vs-new `accepts` equivalence — route: delegated (writer trigger: feature touches 2+ non-trivial files)
-- [ ] T2 `TraceValidationService` (walk + bpmn id translation + `via_gateways`) with unit tests — route: delegated
+- [x] T2 `TraceValidationService` (walk + bpmn id translation + `via_gateways`) with unit tests — route: delegated
 - [ ] T3 Endpoint `POST /validate-trace` in `router.py` + endpoint tests (accepted, three rejection reasons, empty trace, trace/bpmn_trace equivalence, both fields, neither, invalid JSON, non-analyzable 422, missing file, simulate-route-accepted, OpenAPI, CORS) — route: delegated
 - [ ] T4 Contract `docs/api-contract-bpmn-import.md`: endpoint row, response shape with an example captured from the real API, `rejection_reason` table, alphabet note, limitations — route: delegated
 
@@ -47,4 +47,5 @@ Endpoint visible in `/openapi.json`; `/import`, `/compile`, `/simulate` response
 
 ## Progress / evidence
 (commits and check results are recorded here per task)
-- T1 done. RED: `tests/test_dfa_walk.py` 9 failed / 1 passed (`DFA` has no attribute `walk`). GREEN: 10 passed. Full suite: 82 passed, 3 failed (known environmental failures only). Commit hash: recorded in the T2 entry.
+- T1 done. RED: `tests/test_dfa_walk.py` 9 failed / 1 passed (`DFA` has no attribute `walk`). GREEN: 10 passed. Full suite: 82 passed, 3 failed (known environmental failures only). Commit: ba7e45b.
+- T2 done. RED: `tests/test_trace_validation_service.py` collection error (module `trace_validation_service` missing). First GREEN run: 15 passed, 2 failed because two of my `via_gateways` expectations were wrong (parallel branch B only crosses the split; an ambiguous chain returns both gateways); tests corrected to the documented semantics, then 17 passed. Full suite: 100 passed, 3 failed (known environmental failures only). Commit hash: recorded in the T3 entry.
