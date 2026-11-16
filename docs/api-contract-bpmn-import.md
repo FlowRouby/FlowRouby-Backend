@@ -312,10 +312,19 @@ Los nodos no soportados (`nodeType: "unsupported"`) **aparecen en `nodes[]`** co
     "diagnostics": [],
     "semantic_errors": [],
     "semantic_warnings": []
+  },
+  "bpmn_node_ids": {
+    "start_1": "StartEvent_1x9k2",
+    "task_1": "Activity_0q7w3e",
+    "end_1": "Event_0end77"
   }
 }
 ```
 
+- `bpmn_node_ids` relaciona cada **símbolo** de nodo con su **ID BPMN original**. `compile` y `simulate` nombran los nodos con símbolos secuenciales (`start_1`, `task_1`, `decision_1`, `parallel_1`, `inclusive_1`, `end_1`) en `formal_analysis`, `flowspec`, `generated_ruby` y `simulation.visited_nodes`. Para resaltar en `bpmn-js`, traducir siempre el símbolo con este mapa (ej. `canvas.addMarker(bpmn_node_ids[symbol], 'fr-visited')`).
+- Los diagnósticos (`elementId`) y toda la respuesta de `/import` usan el ID BPMN original, sin traducción. Los IDs de `sequenceFlow` nunca se renombran.
+- Los símbolos se numeran por orden de recorrido desde el evento de inicio: cambian si cambia el diagrama, así que no deben guardarse entre peticiones.
+- `simulate` devuelve el mismo `bpmn_node_ids` en la raíz de su respuesta; vale `null` cuando se simula con `flowspec_code` (no hay diagrama de origen).
 - `process_name` cae al `process_id` si el proceso no tiene nombre.
 - `is_executable` es `null` cuando el atributo no está en el XML.
 - `validation.diagnostics` trae las advertencias e informaciones que **no bloquean** (ver 3). Puede venir vacío.

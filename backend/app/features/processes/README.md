@@ -13,7 +13,10 @@ XML text -> xml_loader (defusedxml) -> parser (IR) -> validator (diagnostics) ->
 
 ## IR in short
 
-* BPMN ids and names are never rewritten (`name` is `None` when the XML has none).
+* BPMN ids and names are never rewritten (`name` is `None` when the XML has none). `compile` and
+  `simulate` work on a copy whose nodes use sequential symbols (`start_1`, `task_1`, ...), built by
+  `intermediate_model/id_normalizer.symbolize_node_ids`, and return the symbol -> BPMN id map as
+  `bpmn_node_ids`.
 * Every node keeps its original tag in `bpmn_type`, plus a normalized `node_type` and a
   `support` level (`analyzable`, `preserved`, `unsupported`).
 * Sequence flows keep `source_ref`, `target_ref`, the raw `Condition` (text, `language`,
