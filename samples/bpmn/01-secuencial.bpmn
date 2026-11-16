@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_Process_Secuencial" targetNamespace="http://flowrouby.dev/samples">
+  <bpmn:process id="Process_Secuencial" name="Revisión de formulario" isExecutable="true">
+    <bpmn:startEvent id="Start_Formulario" name="Formulario recibido">
+      <bpmn:outgoing>Flow_S1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="Task_MostrarDatos" name="Mostrar datos del formulario">
+      <bpmn:incoming>Flow_S1</bpmn:incoming>
+      <bpmn:outgoing>Flow_S2</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_EnviarObservaciones" name="Enviar observaciones">
+      <bpmn:incoming>Flow_S2</bpmn:incoming>
+      <bpmn:outgoing>Flow_S3</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="End_Tramite" name="Fin del trámite">
+      <bpmn:incoming>Flow_S3</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_S1" sourceRef="Start_Formulario" targetRef="Task_MostrarDatos" />
+    <bpmn:sequenceFlow id="Flow_S2" sourceRef="Task_MostrarDatos" targetRef="Task_EnviarObservaciones" />
+    <bpmn:sequenceFlow id="Flow_S3" sourceRef="Task_EnviarObservaciones" targetRef="End_Tramite" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_Process_Secuencial">
+    <bpmndi:BPMNPlane id="BPMNPlane_Process_Secuencial" bpmnElement="Process_Secuencial">
+      <bpmndi:BPMNShape id="Start_Formulario_di" bpmnElement="Start_Formulario">
+        <dc:Bounds x="182" y="182" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_MostrarDatos_di" bpmnElement="Task_MostrarDatos">
+        <dc:Bounds x="290" y="160" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_EnviarObservaciones_di" bpmnElement="Task_EnviarObservaciones">
+        <dc:Bounds x="450" y="160" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_Tramite_di" bpmnElement="End_Tramite">
+        <dc:Bounds x="622" y="182" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_S1_di" bpmnElement="Flow_S1">
+        <di:waypoint x="218" y="200" />
+        <di:waypoint x="290" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_S2_di" bpmnElement="Flow_S2">
+        <di:waypoint x="390" y="200" />
+        <di:waypoint x="450" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_S3_di" bpmnElement="Flow_S3">
+        <di:waypoint x="550" y="200" />
+        <di:waypoint x="622" y="200" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

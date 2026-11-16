@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_Process_BucleCorreccion" targetNamespace="http://flowrouby.dev/samples">
+  <bpmn:process id="Process_BucleCorreccion" name="Revisión con correcciones" isExecutable="true">
+    <bpmn:startEvent id="Start_Documento" name="Documento recibido">
+      <bpmn:outgoing>Flow_B1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:exclusiveGateway id="Gateway_Entrada" name="">
+      <bpmn:incoming>Flow_B1</bpmn:incoming>
+      <bpmn:incoming>Flow_B4</bpmn:incoming>
+      <bpmn:outgoing>Flow_B2</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_Revisar" name="Revisar documento">
+      <bpmn:incoming>Flow_B2</bpmn:incoming>
+      <bpmn:outgoing>Flow_B3</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_Correcto" name="¿Requiere corrección?" default="Flow_B_Ok">
+      <bpmn:incoming>Flow_B3</bpmn:incoming>
+      <bpmn:outgoing>Flow_B_Ok</bpmn:outgoing>
+      <bpmn:outgoing>Flow_B_Corregir</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_Corregir" name="Corregir documento">
+      <bpmn:incoming>Flow_B_Corregir</bpmn:incoming>
+      <bpmn:outgoing>Flow_B4</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="End_Documento" name="Documento aceptado">
+      <bpmn:incoming>Flow_B_Ok</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_B1" sourceRef="Start_Documento" targetRef="Gateway_Entrada" />
+    <bpmn:sequenceFlow id="Flow_B2" sourceRef="Gateway_Entrada" targetRef="Task_Revisar" />
+    <bpmn:sequenceFlow id="Flow_B3" sourceRef="Task_Revisar" targetRef="Gateway_Correcto" />
+    <bpmn:sequenceFlow id="Flow_B_Ok" sourceRef="Gateway_Correcto" targetRef="End_Documento" name="No" />
+    <bpmn:sequenceFlow id="Flow_B_Corregir" sourceRef="Gateway_Correcto" targetRef="Task_Corregir" name="Sí">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${requiere_correccion == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_B4" sourceRef="Task_Corregir" targetRef="Gateway_Entrada" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_Process_BucleCorreccion">
+    <bpmndi:BPMNPlane id="BPMNPlane_Process_BucleCorreccion" bpmnElement="Process_BucleCorreccion">
+      <bpmndi:BPMNShape id="Start_Documento_di" bpmnElement="Start_Documento">
+        <dc:Bounds x="182" y="182" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Entrada_di" bpmnElement="Gateway_Entrada" isMarkerVisible="true">
+        <dc:Bounds x="295" y="175" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Revisar_di" bpmnElement="Task_Revisar">
+        <dc:Bounds x="410" y="160" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Correcto_di" bpmnElement="Gateway_Correcto" isMarkerVisible="true">
+        <dc:Bounds x="585" y="175" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Corregir_di" bpmnElement="Task_Corregir">
+        <dc:Bounds x="410" y="300" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_Documento_di" bpmnElement="End_Documento">
+        <dc:Bounds x="722" y="182" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_B1_di" bpmnElement="Flow_B1">
+        <di:waypoint x="218" y="200" />
+        <di:waypoint x="295" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_B2_di" bpmnElement="Flow_B2">
+        <di:waypoint x="345" y="200" />
+        <di:waypoint x="410" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_B3_di" bpmnElement="Flow_B3">
+        <di:waypoint x="510" y="200" />
+        <di:waypoint x="585" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_B_Ok_di" bpmnElement="Flow_B_Ok">
+        <di:waypoint x="635" y="200" />
+        <di:waypoint x="722" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_B_Corregir_di" bpmnElement="Flow_B_Corregir">
+        <di:waypoint x="610" y="225" />
+        <di:waypoint x="610" y="340" />
+        <di:waypoint x="510" y="340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_B4_di" bpmnElement="Flow_B4">
+        <di:waypoint x="410" y="340" />
+        <di:waypoint x="320" y="340" />
+        <di:waypoint x="320" y="225" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

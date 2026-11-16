@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_Process_DecisionXor" targetNamespace="http://flowrouby.dev/samples">
+  <bpmn:process id="Process_DecisionXor" name="Aprobación de solicitud" isExecutable="true">
+    <bpmn:startEvent id="Start_Solicitud" name="Solicitud recibida">
+      <bpmn:outgoing>Flow_X1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="Task_Evaluar" name="Evaluar solicitud">
+      <bpmn:incoming>Flow_X1</bpmn:incoming>
+      <bpmn:outgoing>Flow_X2</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_Aprobada" name="¿Aprobada?" default="Flow_X_No">
+      <bpmn:incoming>Flow_X2</bpmn:incoming>
+      <bpmn:outgoing>Flow_X_Si</bpmn:outgoing>
+      <bpmn:outgoing>Flow_X_No</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="Task_NotificarAprobacion" name="Notificar aprobación">
+      <bpmn:incoming>Flow_X_Si</bpmn:incoming>
+      <bpmn:outgoing>Flow_X3</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Task_NotificarRechazo" name="Notificar rechazo">
+      <bpmn:incoming>Flow_X_No</bpmn:incoming>
+      <bpmn:outgoing>Flow_X4</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="End_Aprobada" name="Solicitud aprobada">
+      <bpmn:incoming>Flow_X3</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="End_Rechazada" name="Solicitud rechazada">
+      <bpmn:incoming>Flow_X4</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_X1" sourceRef="Start_Solicitud" targetRef="Task_Evaluar" />
+    <bpmn:sequenceFlow id="Flow_X2" sourceRef="Task_Evaluar" targetRef="Gateway_Aprobada" />
+    <bpmn:sequenceFlow id="Flow_X_Si" sourceRef="Gateway_Aprobada" targetRef="Task_NotificarAprobacion" name="Sí">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${aprobada == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_X_No" sourceRef="Gateway_Aprobada" targetRef="Task_NotificarRechazo" name="No" />
+    <bpmn:sequenceFlow id="Flow_X3" sourceRef="Task_NotificarAprobacion" targetRef="End_Aprobada" />
+    <bpmn:sequenceFlow id="Flow_X4" sourceRef="Task_NotificarRechazo" targetRef="End_Rechazada" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_Process_DecisionXor">
+    <bpmndi:BPMNPlane id="BPMNPlane_Process_DecisionXor" bpmnElement="Process_DecisionXor">
+      <bpmndi:BPMNShape id="Start_Solicitud_di" bpmnElement="Start_Solicitud">
+        <dc:Bounds x="182" y="182" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Evaluar_di" bpmnElement="Task_Evaluar">
+        <dc:Bounds x="290" y="160" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Aprobada_di" bpmnElement="Gateway_Aprobada" isMarkerVisible="true">
+        <dc:Bounds x="455" y="175" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_NotificarAprobacion_di" bpmnElement="Task_NotificarAprobacion">
+        <dc:Bounds x="580" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_NotificarRechazo_di" bpmnElement="Task_NotificarRechazo">
+        <dc:Bounds x="580" y="240" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_Aprobada_di" bpmnElement="End_Aprobada">
+        <dc:Bounds x="772" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_Rechazada_di" bpmnElement="End_Rechazada">
+        <dc:Bounds x="772" y="262" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_X1_di" bpmnElement="Flow_X1">
+        <di:waypoint x="218" y="200" />
+        <di:waypoint x="290" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_X2_di" bpmnElement="Flow_X2">
+        <di:waypoint x="390" y="200" />
+        <di:waypoint x="455" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_X_Si_di" bpmnElement="Flow_X_Si">
+        <di:waypoint x="480" y="175" />
+        <di:waypoint x="480" y="120" />
+        <di:waypoint x="580" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_X_No_di" bpmnElement="Flow_X_No">
+        <di:waypoint x="480" y="225" />
+        <di:waypoint x="480" y="280" />
+        <di:waypoint x="580" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_X3_di" bpmnElement="Flow_X3">
+        <di:waypoint x="680" y="120" />
+        <di:waypoint x="772" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_X4_di" bpmnElement="Flow_X4">
+        <di:waypoint x="680" y="280" />
+        <di:waypoint x="772" y="280" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
