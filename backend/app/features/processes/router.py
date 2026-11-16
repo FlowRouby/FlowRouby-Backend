@@ -1,4 +1,4 @@
-"""HTTP routes for the processes feature (import, compile, and simulate)."""
+"""HTTP routes for the processes feature (import, compile, simulate, and validate-trace)."""
 
 from __future__ import annotations
 
@@ -16,6 +16,11 @@ from ..flowspec.parser.parser import FlowSpecParser, FlowSpecSyntaxError
 from ..flowspec.semantic_analysis.analyzer import FlowSpecSemanticAnalyzer
 from ..flowspec.semantic_analysis.simulator import FlowSpecSimulator
 from ..formal_analysis.services.analysis_service import FormalAnalysisService
+from ..formal_analysis.services.trace_validation_service import (
+    TraceRequestError,
+    TraceValidationService,
+    parse_trace_request,
+)
 from .dependencies import import_analyzable_process, import_bpmn_document
 from .import_response import build_import_response
 from .services.process_service import ProcessImportService
@@ -24,6 +29,7 @@ router = APIRouter(prefix="/api/v1/processes", tags=["processes"])
 
 process_service = ProcessImportService()
 formal_service = FormalAnalysisService()
+trace_validation_service = TraceValidationService()
 flowspec_emitter = FlowSpecEmitter()
 flowspec_parser = FlowSpecParser()
 semantic_analyzer = FlowSpecSemanticAnalyzer()
@@ -168,3 +174,32 @@ def simulate_bpmn_process(
         "bpmn_node_ids": bpmn_node_ids,
         "simulation": sim_result.to_dict(),
     }
+
+
+@router.post(
+    "/validate-trace",
+    summary="Check whether a trace is a possible execution of the BPMN model",
+    responses={422: {"description": "Invalid trace fields, unreadable document or diagram that cannot be analyzed."}},
+)
+def validate_trace(
+    file: UploadFile = File(..., description="Single .bpmn or .xml file whose DFA defines the valid traces"),
+    trace: Optional[str] = Form(None, description="JSON array of DFA symbols, e.g. [\"start_1\", \"task_1\"]"),
+    bpmn_trace: Optional[str] = Form(None, description="JSON array of original BPMN node ids (alternative to 'trace')"),
+) -> Dict[str, Any]:
+    """Stateless membership check: is the trace accepted by the DFA inferred from the uploaded model?
+
+    Send exactly one of ``trace`` (symbols) or ``bpmn_trace`` (BPMN ids). A rejected trace is still HTTP 200.
+    """
+    try:
+        parsed_trace, uses_bpmn_ids = parse_trace_request(trace, bpmn_trace)
+    except TraceRequestError as exc:
+        raise HTTPException(status_code=422, detail={"message": str(exc)}) from exc
+
+    graph, _, bpmn_node_ids = import_analyzable_process(file, process_service)
+    dfa = formal_service.analyze(graph).dfa
+
+    if uses_bpmn_ids:
+        validation = trace_validation_service.validate_bpmn_trace(graph, dfa, bpmn_node_ids, parsed_trace)
+    else:
+        validation = trace_validation_service.validate(graph, dfa, parsed_trace)
+    return {"process_id": graph.process_id, "bpmn_node_ids": bpmn_node_ids, "validation": validation}
