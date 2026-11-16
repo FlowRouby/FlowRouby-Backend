@@ -40,7 +40,7 @@
 - [x] T1 `DFA.walk()` + `accepts()` delegating to it; unit tests incl. old-vs-new `accepts` equivalence — route: delegated (writer trigger: feature touches 2+ non-trivial files)
 - [x] T2 `TraceValidationService` (walk + bpmn id translation + `via_gateways`) with unit tests — route: delegated
 - [x] T3 Endpoint `POST /validate-trace` in `router.py` + endpoint tests (accepted, three rejection reasons, empty trace, trace/bpmn_trace equivalence, both fields, neither, invalid JSON, non-analyzable 422, missing file, simulate-route-accepted, OpenAPI, CORS) — route: delegated
-- [ ] T4 Contract `docs/api-contract-bpmn-import.md`: endpoint row, response shape with an example captured from the real API, `rejection_reason` table, alphabet note, limitations — route: delegated
+- [x] T4 Contract `docs/api-contract-bpmn-import.md`: endpoint row, response shape with an example captured from the real API, `rejection_reason` table, alphabet note, limitations — route: delegated
 
 ## Acceptance criteria
 Endpoint visible in `/openapi.json`; `/import`, `/compile`, `/simulate` responses unchanged; CORS still works for `http://localhost:4200`; full suite = baseline failures only; one Conventional Commit per task, no AI attribution, no push.
@@ -49,4 +49,5 @@ Endpoint visible in `/openapi.json`; `/import`, `/compile`, `/simulate` response
 (commits and check results are recorded here per task)
 - T1 done. RED: `tests/test_dfa_walk.py` 9 failed / 1 passed (`DFA` has no attribute `walk`). GREEN: 10 passed. Full suite: 82 passed, 3 failed (known environmental failures only). Commit: ba7e45b.
 - T2 done. RED: `tests/test_trace_validation_service.py` collection error (module `trace_validation_service` missing). First GREEN run: 15 passed, 2 failed because two of my `via_gateways` expectations were wrong (parallel branch B only crosses the split; an ambiguous chain returns both gateways); tests corrected to the documented semantics, then 17 passed. Full suite: 100 passed, 3 failed (known environmental failures only). Commit: 7e65d8f.
-- T3 done. RED: `tests/test_validate_trace_endpoint.py` 31 failed / 1 passed (route absent; the passing one was the CORS preflight answered by the middleware). GREEN: 32 passed, including simulate-derived traces accepted for sequential, XOR (both branches) and parallel. Full suite: 132 passed, 3 failed (known environmental failures only). Commit hash: recorded in the T4 entry.
+- T3 done. RED: `tests/test_validate_trace_endpoint.py` 31 failed / 1 passed (route absent; the passing one was the CORS preflight answered by the middleware). GREEN: 32 passed, including simulate-derived traces accepted for sequential, XOR (both branches) and parallel. Full suite: 132 passed, 3 failed (known environmental failures only). Commit: c77c375.
+- T4 done. Contract section 1.2 added with real TestClient output (accepted and rejected XOR examples), rejection_reason table, notes and limitation; section 1 table row and section 2.4 row added. Docs only, no RED/GREEN applicable. Full suite: 132 passed, 3 failed (known environmental failures only). Commit hash: reported by the writer.

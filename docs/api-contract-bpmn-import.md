@@ -14,8 +14,9 @@ Los ejemplos de este documento fueron obtenidos ejecutando la API real; no son i
 | POST | `/api/v1/processes/compile` | `multipart/form-data`, campo `file` (un archivo `.bpmn` o `.xml`) | Importa, analiza, emite FlowSpec y genera Ruby |
 | POST | `/api/v1/processes/simulate` | `multipart/form-data`, campo `file` (`.bpmn`) **o** `flowspec_code`; opcional `input_data` (JSON string) | Simulación sin estado |
 | POST | `/api/v1/processes/import` | `multipart/form-data`, campo `file` (un archivo `.bpmn` o `.xml`) | **Solo importa**: devuelve el modelo y los diagnósticos, sin análisis, FlowSpec, Ruby ni persistencia |
+| POST | `/api/v1/processes/validate-trace` | `multipart/form-data`, campo `file` (`.bpmn` o `.xml`) y **uno** de `trace` o `bpmn_trace` (JSON string con un arreglo de strings) | Indica si una traza pertenece al lenguaje del DFA del modelo, con el recorrido paso a paso |
 
-Los tres importan el XML con las mismas reglas. `compile` y `simulate` se detienen (`422`) cuando el análisis no puede ejecutarse; `import` responde `200` en ese caso para que el diagrama pueda mostrarse.
+Los cuatro importan el XML con las mismas reglas. `compile`, `simulate` y `validate-trace` se detienen (`422`) cuando el análisis no puede ejecutarse; `import` responde `200` en ese caso para que el diagrama pueda mostrarse.
 
 ### 1.1 `POST /api/v1/processes/import`
 
@@ -291,6 +292,166 @@ Los nodos no soportados (`nodeType: "unsupported"`) **aparecen en `nodes[]`** co
 }
 ```
 
+### 1.2 `POST /api/v1/processes/validate-trace`
+
+Responde si una traza escrita por el usuario es una ejecución posible del modelo, es decir, si **pertenece al lenguaje del DFA** inferido del diagrama (problema de pertenencia). No guarda nada entre peticiones: el DFA se reconstruye en cada llamada.
+
+**Petición:** `multipart/form-data` con:
+
+| Campo | Obligatorio | Descripción |
+|---|---|---|
+| `file` | sí | Un archivo `.bpmn` o `.xml`, con las mismas reglas de carga que `compile` |
+| `trace` | uno de los dos | JSON string con un arreglo de **símbolos** del DFA, por ejemplo `["start_1", "task_1", "end_1"]` |
+| `bpmn_trace` | uno de los dos | JSON string con un arreglo de **IDs BPMN originales**, por ejemplo `["Start", "Task_Yes", "End_Yes"]` |
+
+Debe enviarse exactamente uno de `trace` o `bpmn_trace`. Un arreglo vacío (`[]`) es una entrada válida.
+
+**Respuestas:**
+
+| HTTP | Cuándo | Cuerpo |
+|---|---|---|
+| `200` | La traza se evaluó, sea aceptada o rechazada | `{ "process_id", "bpmn_node_ids", "validation" }` |
+| `422` | Faltan ambos campos, vienen los dos, o el valor no es un arreglo JSON de strings | `{ "detail": { "message" } }` (ver 2.4) |
+| `422` | El documento no se pudo importar o no se puede analizar | igual que `compile` (ver 2.2 y 2.3) |
+| `422` | Falta el campo `file` | lista de errores de validación de FastAPI (ver 2.4) |
+
+Una traza **rechazada** no es un error HTTP: responde `200` con `validation.accepted: false`.
+
+**Campos de `validation`:**
+
+| Campo | Descripción |
+|---|---|
+| `accepted` | `true` si el DFA consume toda la traza y termina en un estado de aceptación |
+| `trace` | La traza evaluada, **siempre en símbolos**. Con `bpmn_trace`, un ID que no está en `bpmn_node_ids` se conserva tal cual en su posición |
+| `steps[]` | Un elemento por cada símbolo consumido: `index`, `symbol`, `from_state`, `to_state` y `via_gateways` |
+| `steps[].via_gateways` | Símbolos de los gateways que se cruzan para llegar a ese nodo (ver las notas) |
+| `consumed` | Cantidad de símbolos consumidos con éxito (`steps.length`) |
+| `final_state` | Estado donde se detuvo el recorrido. Si no se consumió nada, es el estado inicial (`D0`) |
+| `rejected_at` | Posición del símbolo que falló, o `null` si fue aceptada o si el rechazo es `NOT_ACCEPTING_STATE` |
+| `rejection_reason` | Motivo del rechazo (tabla siguiente), o `null` si fue aceptada |
+| `expected_symbols` | Símbolos con transición desde `final_state`, ordenados. Puede venir vacío |
+
+La evaluación es de izquierda a derecha y **gana el primer fallo**. `steps` solo contiene los símbolos consumidos antes de ese fallo.
+
+**Valores de `rejection_reason`:**
+
+| Valor | Significado | `rejected_at` |
+|---|---|---|
+| `UNKNOWN_SYMBOL` | El símbolo no pertenece al alfabeto del DFA (no existe, o es un gateway) | índice del símbolo |
+| `NO_TRANSITION` | El símbolo está en el alfabeto, pero no hay transición desde el estado actual | índice del símbolo |
+| `NOT_ACCEPTING_STATE` | Se consumió toda la traza, pero el estado final no es de aceptación (por ejemplo, traza incompleta o vacía) | `null` |
+
+**Ejemplo: traza aceptada** (respuesta real, `200`; diagrama XOR de 6 nodos, `bpmn_trace` = `["Start", "Task_Yes", "End_Yes"]`):
+
+```json
+{
+  "process_id": "P",
+  "bpmn_node_ids": {
+    "start_1": "Start",
+    "decision_1": "Gw",
+    "task_1": "Task_Yes",
+    "task_2": "Task_No",
+    "end_1": "End_Yes",
+    "end_2": "End_No"
+  },
+  "validation": {
+    "accepted": true,
+    "trace": [
+      "start_1",
+      "task_1",
+      "end_1"
+    ],
+    "steps": [
+      {
+        "index": 0,
+        "symbol": "start_1",
+        "from_state": "D0",
+        "to_state": "D1",
+        "via_gateways": []
+      },
+      {
+        "index": 1,
+        "symbol": "task_1",
+        "from_state": "D1",
+        "to_state": "D2",
+        "via_gateways": [
+          "decision_1"
+        ]
+      },
+      {
+        "index": 2,
+        "symbol": "end_1",
+        "from_state": "D2",
+        "to_state": "D4",
+        "via_gateways": []
+      }
+    ],
+    "consumed": 3,
+    "final_state": "D4",
+    "rejected_at": null,
+    "rejection_reason": null,
+    "expected_symbols": []
+  }
+}
+```
+
+**Ejemplo: traza rechazada** (respuesta real, `200`; mismo diagrama, `bpmn_trace` = `["Start", "Task_Yes", "End_No"]`, que mezcla las dos ramas del XOR):
+
+```json
+{
+  "process_id": "P",
+  "bpmn_node_ids": {
+    "start_1": "Start",
+    "decision_1": "Gw",
+    "task_1": "Task_Yes",
+    "task_2": "Task_No",
+    "end_1": "End_Yes",
+    "end_2": "End_No"
+  },
+  "validation": {
+    "accepted": false,
+    "trace": [
+      "start_1",
+      "task_1",
+      "end_2"
+    ],
+    "steps": [
+      {
+        "index": 0,
+        "symbol": "start_1",
+        "from_state": "D0",
+        "to_state": "D1",
+        "via_gateways": []
+      },
+      {
+        "index": 1,
+        "symbol": "task_1",
+        "from_state": "D1",
+        "to_state": "D2",
+        "via_gateways": [
+          "decision_1"
+        ]
+      }
+    ],
+    "consumed": 2,
+    "final_state": "D2",
+    "rejected_at": 2,
+    "rejection_reason": "NO_TRANSITION",
+    "expected_symbols": [
+      "end_1"
+    ]
+  }
+}
+```
+
+**Notas:**
+
+- `bpmn_node_ids` es el mismo mapa símbolo -> ID BPMN descrito en 2.1; `validate-trace` también lo devuelve.
+- Los gateways **sí aparecen** en `bpmn_node_ids`, pero **no son símbolos del alfabeto del DFA**: solo lo son los eventos de inicio, las tareas y los eventos de fin. Por eso enviar un gateway en la traza produce `UNKNOWN_SYMBOL`, y `simulation.visited_nodes` (que incluye gateways y repite uniones) no puede enviarse tal cual. Para obtener una traza válida a partir de `simulate`, hay que descartar los pasos de gateway de `simulation.step_logs` (los que traen `selected_targets`) y tomar el `node_id` del resto.
+- `via_gateways` es una **ayuda para dibujar** el recorrido sobre el canvas; no forma parte del autómata ni influye en `accepted`. Lista los gateways que se cruzan desde un nodo ya consumido hasta el nodo del paso, ordenados; si hay varios caminos posibles entre gateways, incluye todos los gateways de esos caminos. En el primer paso normalmente es `[]`. En una unión paralela, la unión aparece en el paso del nodo siguiente; en una división paralela, aparece en las tareas de sus ramas.
+- La validación es **estructural**: el DFA acepta recorridos posibles del grafo, y las condiciones de los flujos no se evalúan. Que una traza sea aceptada no significa que alguna entrada concreta la produzca.
+- **Limitación:** si una rama de una división AND contiene a su vez otro gateway, la región no es estructurada y el lenguaje del DFA queda vacío: cualquier traza se rechaza, aunque `simulate` sí llegue al evento de fin.
+
 ## 2. Respuestas
 
 ### 2.1 Éxito: `200`
@@ -390,6 +551,7 @@ Distingue la forma de `detail`:
 | Archivo con extensión distinta de `.bpmn`/`.xml` | objeto con `message` y `diagnostics` (código `INVALID_UPLOAD`) |
 | No se envió el campo `file` | lista de errores de validación de FastAPI: `[{ "type", "loc", "msg", "input" }]` |
 | `input_data` no es un JSON objeto (simulate) | `{ "message": "..." }` |
+| `trace` y `bpmn_trace` ausentes, ambos presentes, o valor que no es un arreglo JSON de strings (validate-trace) | `{ "message": "..." }` |
 | Error de sintaxis FlowSpec generado | `{ "message", "line", "column", "flowspec_code" }` |
 
 Regla práctica para el frontend: si `detail` es un **array**, es validación de FastAPI; si es un **objeto** con `diagnostics`, es el contrato de este documento.
