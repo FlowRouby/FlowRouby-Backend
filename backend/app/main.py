@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import inspect
+import os
 from typing import Any, Dict
 import starlette.routing
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from .features.processes.router import router as processes_router
 
 if not hasattr(FastAPI, "max_body_size"):
@@ -27,6 +29,21 @@ app = FastAPI(
         "and generates Ruby on Rails + Sidekiq templates."
     ),
     version="1.0.0",
+)
+
+DEFAULT_CORS_ORIGINS = "http://localhost:4200"
+cors_origins = [
+    origin.strip()
+    for origin in os.environ.get("CORS_ALLOWED_ORIGINS", DEFAULT_CORS_ORIGINS).split(",")
+    if origin.strip()
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=cors_origins,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["Content-Disposition"],
 )
 
 app.include_router(processes_router)
