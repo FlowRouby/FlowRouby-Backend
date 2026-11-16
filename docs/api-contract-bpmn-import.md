@@ -15,8 +15,10 @@ Los ejemplos de este documento fueron obtenidos ejecutando la API real; no son i
 | POST | `/api/v1/processes/simulate` | `multipart/form-data`, campo `file` (`.bpmn`) **o** `flowspec_code`; opcional `input_data` (JSON string) | Simulación sin estado |
 | POST | `/api/v1/processes/import` | `multipart/form-data`, campo `file` (un archivo `.bpmn` o `.xml`) | **Solo importa**: devuelve el modelo y los diagnósticos, sin análisis, FlowSpec, Ruby ni persistencia |
 | POST | `/api/v1/processes/validate-trace` | `multipart/form-data`, campo `file` (`.bpmn` o `.xml`) y **uno** de `trace` o `bpmn_trace` (JSON string con un arreglo de strings) | Indica si una traza pertenece al lenguaje del DFA del modelo, con el recorrido paso a paso |
+| GET | `/api/v1/processes/samples` | Sin entrada | Lista los diagramas BPMN de demostración disponibles (ver 1.3) |
+| GET | `/api/v1/processes/samples/{sample_id}` | Parámetro de ruta `sample_id` | Devuelve el XML BPMN de un diagrama de demostración (ver 1.3) |
 
-Los cuatro importan el XML con las mismas reglas. `compile`, `simulate` y `validate-trace` se detienen (`422`) cuando el análisis no puede ejecutarse; `import` responde `200` en ese caso para que el diagrama pueda mostrarse.
+Los cuatro endpoints `POST` importan el XML con las mismas reglas. `compile`, `simulate` y `validate-trace` se detienen (`422`) cuando el análisis no puede ejecutarse; `import` responde `200` en ese caso para que el diagrama pueda mostrarse.
 
 ### 1.1 `POST /api/v1/processes/import`
 
@@ -451,6 +453,43 @@ La evaluación es de izquierda a derecha y **gana el primer fallo**. `steps` sol
 - `via_gateways` es una **ayuda para dibujar** el recorrido sobre el canvas; no forma parte del autómata ni influye en `accepted`. Lista los gateways que se cruzan desde un nodo ya consumido hasta el nodo del paso, ordenados; si hay varios caminos posibles entre gateways, incluye todos los gateways de esos caminos. En el primer paso normalmente es `[]`. En una unión paralela, la unión aparece en el paso del nodo siguiente; en una división paralela, aparece en las tareas de sus ramas.
 - La validación es **estructural**: el DFA acepta recorridos posibles del grafo, y las condiciones de los flujos no se evalúan. Que una traza sea aceptada no significa que alguna entrada concreta la produzca.
 - **Limitación:** si una rama de una división AND contiene a su vez otro gateway, la región no es estructurada y el lenguaje del DFA queda vacío: cualquier traza se rechaza, aunque `simulate` sí llegue al evento de fin.
+
+### 1.3 `GET /api/v1/processes/samples` y `GET /api/v1/processes/samples/{sample_id}`
+
+Exponen los diagramas BPMN de demostración para que el frontend los liste y los cargue en bpmn-js. No requieren cuerpo.
+
+**`GET /api/v1/processes/samples`** responde `200` con `{ "samples": [...] }`, ordenado por `id`. Cada elemento tiene las claves `id` (nombre del archivo sin extensión), `filename`, `name` (nombre del proceso BPMN) y `process_id` (ID del proceso BPMN), todas en `snake_case`. Respuesta real (recortada a los dos primeros diagramas):
+
+```json
+{
+  "samples": [
+    {
+      "id": "01-secuencial",
+      "filename": "01-secuencial.bpmn",
+      "name": "Revisión de formulario",
+      "process_id": "Process_Secuencial"
+    },
+    {
+      "id": "02-decision-xor",
+      "filename": "02-decision-xor.bpmn",
+      "name": "Aprobación de solicitud",
+      "process_id": "Process_DecisionXor"
+    }
+  ]
+}
+```
+
+**`GET /api/v1/processes/samples/{sample_id}`** responde `200` con el XML BPMN sin modificar (`Content-Type: application/xml`, `Content-Disposition: inline; filename="01-secuencial.bpmn"`), listo para `importXML` de bpmn-js o para enviarlo como `file` a los demás endpoints. Si el `id` no existe responde `404` con la misma forma de error de los demás endpoints:
+
+```json
+{ "detail": { "message": "Sample 'nope' was not found." } }
+```
+
+**Notas:**
+
+- Hoy el origen es la carpeta `samples/bpmn/` del repositorio (configurable con la variable de entorno `SAMPLES_DIR`). Puede pasar a una base de datos más adelante sin cambiar este contrato.
+- El `id` solo se resuelve contra los diagramas listados; cualquier otro valor, incluidos intentos de recorrer rutas, responde `404`.
+- Los archivos que no se pueden importar se omiten del listado.
 
 ## 2. Respuestas
 
