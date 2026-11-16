@@ -451,7 +451,7 @@ Varios `endEvent` están permitidos y no generan diagnóstico.
 
 ## 6. Limitaciones y pendientes
 
-1. **No hay CORS configurado.** El backend no incluye `CORSMiddleware`; el frontend en otro origen será bloqueado por el navegador hasta que se configure.
+1. **CORS:** el backend acepta por defecto el origen `http://localhost:4200`. Para otros orígenes, definir la variable de entorno `CORS_ALLOWED_ORIGINS` con una lista separada por comas. La cabecera `Content-Disposition` queda expuesta para leer el nombre del ZIP de `compile?format=zip`.
 2. **Sin persistencia.** Nada se guarda; cada petición importa de cero (MongoDB queda para una etapa posterior).
 3. `message` está en inglés y no es estable; el frontend debe traducir por `code`.
 4. La simulación sobre `flowspec_code` no forma parte de este contrato.
