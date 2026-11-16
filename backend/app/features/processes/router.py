@@ -55,7 +55,7 @@ def compile_bpmn_process(
     """Accepts a single .bpmn file, validates it, runs formal automata analysis,
     emits and compiles FlowSpec DSL, and returns either the full compilation JSON
     or a downloadable Ruby on Rails + Sidekiq project ZIP."""
-    graph, diagnostics = import_analyzable_process(file, process_service)
+    graph, diagnostics, bpmn_node_ids = import_analyzable_process(file, process_service)
 
     formal_report = formal_service.analyze(graph)
 
@@ -113,6 +113,7 @@ def compile_bpmn_process(
             "semantic_errors": semantic_result.errors,
             "semantic_warnings": semantic_result.warnings,
         },
+        "bpmn_node_ids": bpmn_node_ids,
         "data_contract": semantic_result.data_contract,
         "formal_analysis": formal_report.to_dict(),
         "flowspec": {
@@ -139,8 +140,9 @@ def simulate_bpmn_process(
         raise HTTPException(status_code=422, detail={"message": f"Invalid input_data JSON: {exc}"}) from exc
 
     dfa = None
+    bpmn_node_ids: Optional[Dict[str, str]] = None
     if file is not None:
-        graph, _ = import_analyzable_process(file, process_service)
+        graph, _, bpmn_node_ids = import_analyzable_process(file, process_service)
         formal_report = formal_service.analyze(graph)
         dfa = formal_report.dfa
         code_to_run = flowspec_emitter.emit(graph)
@@ -163,5 +165,6 @@ def simulate_bpmn_process(
     sim_result = simulator.simulate(ast=process_ast, input_data=parsed_input, dfa=dfa)
     return {
         "process_id": process_ast.process_id,
+        "bpmn_node_ids": bpmn_node_ids,
         "simulation": sim_result.to_dict(),
     }

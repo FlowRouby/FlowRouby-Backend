@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from collections import deque
-from typing import Dict, List, Set
+from copy import deepcopy
+from typing import Dict, List, Set, Tuple
 
 from .models import NodeType, ProcessGraph
 
@@ -26,8 +27,21 @@ _ROLE_PREFIXES: Dict[NodeType, str] = {
 }
 
 
+def symbolize_node_ids(graph: ProcessGraph) -> Tuple[ProcessGraph, Dict[str, str]]:
+    """Returns a copy of the graph whose nodes use sequential symbols, plus the symbol -> BPMN id map.
+
+    The imported graph is left untouched, so original BPMN ids are never lost.
+    """
+    symbolic_graph = deepcopy(graph)
+    id_map = normalize_node_ids(symbolic_graph)
+    return symbolic_graph, {symbol: bpmn_id for bpmn_id, symbol in id_map.items()}
+
+
 def normalize_node_ids(graph: ProcessGraph) -> Dict[str, str]:
-    """Rewrites node IDs in BFS order using sequential role-based names (e.g. start_1, task_1, decision_1, end_1)."""
+    """Rewrites node IDs in place, in BFS order, using sequential role-based names (e.g. start_1, task_1, decision_1, end_1).
+
+    Returns the BPMN id -> symbol map. Prefer ``symbolize_node_ids`` to keep the original graph.
+    """
     ordered_ids: List[str] = []
     visited: Set[str] = set()
     queue: deque[str] = deque(n.id for n in graph.start_nodes)

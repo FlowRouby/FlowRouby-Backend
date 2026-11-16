@@ -338,6 +338,66 @@ def test_simulate_still_refuses_blocked_diagrams_with_its_own_message() -> None:
     assert response.json()["detail"]["message"] == "The BPMN document was imported but cannot be analyzed yet."
 
 
+MODELER_IDS = definitions(
+    '  <bpmn:process id="P" name="Demo" isExecutable="true">',
+    '    <bpmn:startEvent id="StartEvent_1x9k2" name="Begin"/>',
+    '    <bpmn:task id="Activity_0q7w3e" name="Register request"/>',
+    '    <bpmn:endEvent id="Event_0end77" name="Done"/>',
+    '    <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_1x9k2" targetRef="Activity_0q7w3e"/>',
+    '    <bpmn:sequenceFlow id="Flow_2" sourceRef="Activity_0q7w3e" targetRef="Event_0end77"/>',
+    "  </bpmn:process>",
+)
+MODELER_NODE_IDS = {"start_1": "StartEvent_1x9k2", "task_1": "Activity_0q7w3e", "end_1": "Event_0end77"}
+
+
+def test_compile_maps_every_node_symbol_back_to_its_bpmn_id() -> None:
+    response = client.post("/api/v1/processes/compile", files={"file": ("p.bpmn", MODELER_IDS.encode(), "application/xml")})
+    body = response.json()
+
+    assert response.status_code == 200
+    assert body["bpmn_node_ids"] == MODELER_NODE_IDS
+    assert "task_1" in body["flowspec"]["code"] and "Activity_0q7w3e" not in body["flowspec"]["code"]
+
+
+def test_simulate_maps_visited_symbols_back_to_bpmn_ids() -> None:
+    response = client.post(
+        "/api/v1/processes/simulate", files={"file": ("p.bpmn", MODELER_IDS.encode(), "application/xml")}, data={"input_data": "{}"}
+    )
+    body = response.json()
+
+    assert response.status_code == 200
+    assert body["bpmn_node_ids"] == MODELER_NODE_IDS
+    assert [body["bpmn_node_ids"][symbol] for symbol in body["simulation"]["visited_nodes"]] == [
+        "StartEvent_1x9k2",
+        "Activity_0q7w3e",
+        "Event_0end77",
+    ]
+
+
+def test_simulate_over_flowspec_code_has_no_bpmn_ids() -> None:
+    compiled = client.post("/api/v1/processes/compile", files={"file": ("p.bpmn", MODELER_IDS.encode(), "application/xml")})
+    response = client.post(
+        "/api/v1/processes/simulate", data={"flowspec_code": compiled.json()["flowspec"]["code"], "input_data": "{}"}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["bpmn_node_ids"] is None
+
+
+def test_symbolizing_node_ids_leaves_the_imported_graph_untouched() -> None:
+    from app.features.processes.bpmn_importer import BpmnImporter
+    from app.features.processes.intermediate_model.id_normalizer import symbolize_node_ids
+
+    graph = BpmnImporter().import_xml(MODELER_IDS).process
+    symbolic_graph, bpmn_node_ids = symbolize_node_ids(graph)
+
+    assert list(graph.nodes) == ["StartEvent_1x9k2", "Activity_0q7w3e", "Event_0end77"]
+    assert graph.edges["Flow_1"].target_ref == "Activity_0q7w3e"
+    assert list(symbolic_graph.nodes) == ["start_1", "task_1", "end_1"]
+    assert symbolic_graph.edges["Flow_1"].target_ref == "task_1"
+    assert bpmn_node_ids == MODELER_NODE_IDS
+
+
 def test_openapi_lists_the_import_route_next_to_the_existing_ones() -> None:
     paths = client.get("/openapi.json").json()["paths"]
     assert {"/api/v1/processes/import", "/api/v1/processes/compile", "/api/v1/processes/simulate"} <= set(paths)

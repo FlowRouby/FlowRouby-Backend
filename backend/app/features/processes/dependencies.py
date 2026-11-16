@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from typing import List, Tuple
+from typing import Dict, List, Tuple
 
 from fastapi import HTTPException, UploadFile
 
 from .intermediate_model.diagnostics import Diagnostic, ImportResult
-from .intermediate_model.id_normalizer import normalize_node_ids
+from .intermediate_model.id_normalizer import symbolize_node_ids
 from .intermediate_model.models import ProcessGraph
 from .services.process_service import ProcessImportService
 
@@ -28,8 +28,12 @@ def import_bpmn_document(file: UploadFile, service: ProcessImportService) -> Imp
 
 def import_analyzable_process(
     file: UploadFile, service: ProcessImportService
-) -> Tuple[ProcessGraph, List[Diagnostic]]:
-    """Imports an uploaded BPMN file and requires it to be supported for formal analysis."""
+) -> Tuple[ProcessGraph, List[Diagnostic], Dict[str, str]]:
+    """Imports an uploaded BPMN file and requires it to be supported for formal analysis.
+
+    Returns the graph with sequential node symbols, the import diagnostics (which reference
+    original BPMN ids) and the symbol -> BPMN id map needed to trace results back to the diagram.
+    """
     result = import_bpmn_document(file, service)
     graph = result.process
     if not result.analysis_supported or graph is None:
@@ -40,6 +44,6 @@ def import_analyzable_process(
                 "diagnostics": [d.to_dict() for d in result.analysis_blockers],
             },
         )
-    normalize_node_ids(graph)
-    return graph, result.diagnostics
+    symbolic_graph, bpmn_node_ids = symbolize_node_ids(graph)
+    return symbolic_graph, result.diagnostics, bpmn_node_ids
 
