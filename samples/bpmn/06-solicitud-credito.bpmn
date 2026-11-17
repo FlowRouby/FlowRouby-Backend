@@ -1,0 +1,300 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" id="Definitions_Process_SolicitudCredito" targetNamespace="http://flowrouby.dev/samples">
+  <bpmn:process id="Process_SolicitudCredito" name="Solicitud de crédito" isExecutable="true">
+    <bpmn:startEvent id="Start_Credito" name="Solicitud recibida">
+      <bpmn:outgoing>Flow_C1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="Task_RegistrarSolicitud" name="Registrar solicitud">
+      <bpmn:extensionElements>
+        <camunda:formData>
+          <camunda:formField id="cliente" label="Nombre del cliente" type="string" />
+          <camunda:formField id="monto" label="Monto solicitado" type="long" />
+          <camunda:formField id="ingresos" label="Ingresos mensuales" type="long" />
+        </camunda:formData>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_C1</bpmn:incoming>
+      <bpmn:outgoing>Flow_C2</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="Task_ConsultarHistorial" name="Consultar historial crediticio">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="url">https://api.example.com/historial</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">{"cliente": "${cliente}"}</camunda:inputParameter>
+            <camunda:outputParameter name="historial">${response}</camunda:outputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_C2</bpmn:incoming>
+      <bpmn:outgoing>Flow_C3</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:businessRuleTask id="Task_EvaluarRiesgo" name="Evaluar riesgo" camunda:decisionRef="riesgo_credito" camunda:resultVariable="riesgo">
+      <bpmn:incoming>Flow_C3</bpmn:incoming>
+      <bpmn:outgoing>Flow_C4</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+    <bpmn:exclusiveGateway id="Gateway_Riesgo" name="¿Nivel de riesgo?" default="Flow_C_Alto">
+      <bpmn:incoming>Flow_C4</bpmn:incoming>
+      <bpmn:outgoing>Flow_C_Bajo</bpmn:outgoing>
+      <bpmn:outgoing>Flow_C_Medio</bpmn:outgoing>
+      <bpmn:outgoing>Flow_C_Alto</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="Task_AprobarAutomatico" name="Aprobar automáticamente" camunda:class="com.flowrouby.credito.AprobarAutomatico">
+      <bpmn:incoming>Flow_C_Bajo</bpmn:incoming>
+      <bpmn:outgoing>Flow_C5</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:userTask id="Task_RevisarAnalista" name="Revisar con analista">
+      <bpmn:extensionElements>
+        <camunda:formData>
+          <camunda:formField id="aprobado_analista" label="¿El analista aprueba?" type="boolean" />
+          <camunda:formField id="observaciones" label="Observaciones" type="string" />
+        </camunda:formData>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_C_Medio</bpmn:incoming>
+      <bpmn:outgoing>Flow_C6</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_Analista" name="¿Aprueba el analista?" default="Flow_C_AnalistaNo">
+      <bpmn:incoming>Flow_C6</bpmn:incoming>
+      <bpmn:outgoing>Flow_C_AnalistaSi</bpmn:outgoing>
+      <bpmn:outgoing>Flow_C_AnalistaNo</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:exclusiveGateway id="Gateway_Aprobado" name="">
+      <bpmn:incoming>Flow_C5</bpmn:incoming>
+      <bpmn:incoming>Flow_C_AnalistaSi</bpmn:incoming>
+      <bpmn:outgoing>Flow_C7</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:parallelGateway id="Gateway_Formalizar" name="">
+      <bpmn:incoming>Flow_C7</bpmn:incoming>
+      <bpmn:outgoing>Flow_C8</bpmn:outgoing>
+      <bpmn:outgoing>Flow_C9</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:serviceTask id="Task_GenerarContrato" name="Generar contrato" camunda:class="com.flowrouby.credito.GenerarContrato">
+      <bpmn:incoming>Flow_C8</bpmn:incoming>
+      <bpmn:outgoing>Flow_C10</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Task_NotificarAprobacion" name="Notificar aprobación">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="url">https://api.example.com/notificaciones</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">{"cliente": "${cliente}", "monto": "${monto}"}</camunda:inputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_C9</bpmn:incoming>
+      <bpmn:outgoing>Flow_C11</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:parallelGateway id="Gateway_Formalizado" name="">
+      <bpmn:incoming>Flow_C10</bpmn:incoming>
+      <bpmn:incoming>Flow_C11</bpmn:incoming>
+      <bpmn:outgoing>Flow_C12</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:serviceTask id="Task_Desembolsar" name="Desembolsar crédito" camunda:class="com.flowrouby.credito.Desembolsar">
+      <bpmn:incoming>Flow_C12</bpmn:incoming>
+      <bpmn:outgoing>Flow_C13</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="End_CreditoAprobado" name="Crédito desembolsado">
+      <bpmn:incoming>Flow_C13</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="Task_NotificarRechazo" name="Notificar rechazo">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="url">https://api.example.com/notificaciones</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">{"cliente": "${cliente}"}</camunda:inputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_C_Alto</bpmn:incoming>
+      <bpmn:incoming>Flow_C_AnalistaNo</bpmn:incoming>
+      <bpmn:outgoing>Flow_C14</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="End_CreditoRechazado" name="Solicitud rechazada">
+      <bpmn:incoming>Flow_C14</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_C1" sourceRef="Start_Credito" targetRef="Task_RegistrarSolicitud" />
+    <bpmn:sequenceFlow id="Flow_C2" sourceRef="Task_RegistrarSolicitud" targetRef="Task_ConsultarHistorial" />
+    <bpmn:sequenceFlow id="Flow_C3" sourceRef="Task_ConsultarHistorial" targetRef="Task_EvaluarRiesgo" />
+    <bpmn:sequenceFlow id="Flow_C4" sourceRef="Task_EvaluarRiesgo" targetRef="Gateway_Riesgo" />
+    <bpmn:sequenceFlow id="Flow_C_Bajo" sourceRef="Gateway_Riesgo" targetRef="Task_AprobarAutomatico" name="Bajo">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${riesgo &lt; 30 &amp;&amp; monto &lt;= ingresos * 10}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_C_Medio" sourceRef="Gateway_Riesgo" targetRef="Task_RevisarAnalista" name="Medio">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${riesgo &lt; 70}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_C_Alto" sourceRef="Gateway_Riesgo" targetRef="Task_NotificarRechazo" name="Alto" />
+    <bpmn:sequenceFlow id="Flow_C5" sourceRef="Task_AprobarAutomatico" targetRef="Gateway_Aprobado" />
+    <bpmn:sequenceFlow id="Flow_C6" sourceRef="Task_RevisarAnalista" targetRef="Gateway_Analista" />
+    <bpmn:sequenceFlow id="Flow_C_AnalistaSi" sourceRef="Gateway_Analista" targetRef="Gateway_Aprobado" name="Sí">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${aprobado_analista == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_C_AnalistaNo" sourceRef="Gateway_Analista" targetRef="Task_NotificarRechazo" name="No" />
+    <bpmn:sequenceFlow id="Flow_C7" sourceRef="Gateway_Aprobado" targetRef="Gateway_Formalizar" />
+    <bpmn:sequenceFlow id="Flow_C8" sourceRef="Gateway_Formalizar" targetRef="Task_GenerarContrato" />
+    <bpmn:sequenceFlow id="Flow_C9" sourceRef="Gateway_Formalizar" targetRef="Task_NotificarAprobacion" />
+    <bpmn:sequenceFlow id="Flow_C10" sourceRef="Task_GenerarContrato" targetRef="Gateway_Formalizado" />
+    <bpmn:sequenceFlow id="Flow_C11" sourceRef="Task_NotificarAprobacion" targetRef="Gateway_Formalizado" />
+    <bpmn:sequenceFlow id="Flow_C12" sourceRef="Gateway_Formalizado" targetRef="Task_Desembolsar" />
+    <bpmn:sequenceFlow id="Flow_C13" sourceRef="Task_Desembolsar" targetRef="End_CreditoAprobado" />
+    <bpmn:sequenceFlow id="Flow_C14" sourceRef="Task_NotificarRechazo" targetRef="End_CreditoRechazado" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_Process_SolicitudCredito">
+    <bpmndi:BPMNPlane id="BPMNPlane_Process_SolicitudCredito" bpmnElement="Process_SolicitudCredito">
+      <bpmndi:BPMNShape id="Start_Credito_di" bpmnElement="Start_Credito">
+        <dc:Bounds x="162" y="242" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_RegistrarSolicitud_di" bpmnElement="Task_RegistrarSolicitud">
+        <dc:Bounds x="270" y="220" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ConsultarHistorial_di" bpmnElement="Task_ConsultarHistorial">
+        <dc:Bounds x="430" y="220" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_EvaluarRiesgo_di" bpmnElement="Task_EvaluarRiesgo">
+        <dc:Bounds x="590" y="220" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Riesgo_di" bpmnElement="Gateway_Riesgo" isMarkerVisible="true">
+        <dc:Bounds x="755" y="235" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_AprobarAutomatico_di" bpmnElement="Task_AprobarAutomatico">
+        <dc:Bounds x="880" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_RevisarAnalista_di" bpmnElement="Task_RevisarAnalista">
+        <dc:Bounds x="880" y="220" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Analista_di" bpmnElement="Gateway_Analista" isMarkerVisible="true">
+        <dc:Bounds x="1055" y="235" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Aprobado_di" bpmnElement="Gateway_Aprobado" isMarkerVisible="true">
+        <dc:Bounds x="1215" y="95" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Formalizar_di" bpmnElement="Gateway_Formalizar">
+        <dc:Bounds x="1335" y="95" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_GenerarContrato_di" bpmnElement="Task_GenerarContrato">
+        <dc:Bounds x="1460" y="10" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_NotificarAprobacion_di" bpmnElement="Task_NotificarAprobacion">
+        <dc:Bounds x="1460" y="150" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Formalizado_di" bpmnElement="Gateway_Formalizado">
+        <dc:Bounds x="1635" y="95" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Desembolsar_di" bpmnElement="Task_Desembolsar">
+        <dc:Bounds x="1750" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_CreditoAprobado_di" bpmnElement="End_CreditoAprobado">
+        <dc:Bounds x="1922" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_NotificarRechazo_di" bpmnElement="Task_NotificarRechazo">
+        <dc:Bounds x="1190" y="360" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_CreditoRechazado_di" bpmnElement="End_CreditoRechazado">
+        <dc:Bounds x="1382" y="382" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_C1_di" bpmnElement="Flow_C1">
+        <di:waypoint x="198" y="260" />
+        <di:waypoint x="270" y="260" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_C2_di" bpmnElement="Flow_C2">
+        <di:waypoint x="370" y="260" />
+        <di:waypoint x="430" y="260" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_C3_di" bpmnElement="Flow_C3">
+        <di:waypoint x="530" y="260" />
+        <di:waypoint x="590" y="260" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_C4_di" bpmnElement="Flow_C4">
+        <di:waypoint x="690" y="260" />
+        <di:waypoint x="755" y="260" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_C_Bajo_di" bpmnElement="Flow_C_Bajo">
+        <di:waypoint x="780" y="235" />
+        <di:waypoint x="780" y="120" />
+        <di:waypoint x="880" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_C_Medio_di" bpmnElement="Flow_C_Medio">
+        <di:waypoint x="805" y="260" />
+        <di:waypoint x="880" y="260" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_C_Alto_di" bpmnElement="Flow_C_Alto">
+        <di:waypoint x="780" y="285" />
+        <di:waypoint x="780" y="400" />
+        <di:waypoint x="1190" y="400" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_C5_di" bpmnElement="Flow_C5">
+        <di:waypoint x="980" y="120" />
+        <di:waypoint x="1215" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_C6_di" bpmnElement="Flow_C6">
+        <di:waypoint x="980" y="260" />
+        <di:waypoint x="1055" y="260" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_C_AnalistaSi_di" bpmnElement="Flow_C_AnalistaSi">
+        <di:waypoint x="1105" y="260" />
+        <di:waypoint x="1240" y="260" />
+        <di:waypoint x="1240" y="145" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_C_AnalistaNo_di" bpmnElement="Flow_C_AnalistaNo">
+        <di:waypoint x="1080" y="285" />
+        <di:waypoint x="1080" y="400" />
+        <di:waypoint x="1190" y="400" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_C7_di" bpmnElement="Flow_C7">
+        <di:waypoint x="1265" y="120" />
+        <di:waypoint x="1335" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_C8_di" bpmnElement="Flow_C8">
+        <di:waypoint x="1360" y="95" />
+        <di:waypoint x="1360" y="50" />
+        <di:waypoint x="1460" y="50" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_C9_di" bpmnElement="Flow_C9">
+        <di:waypoint x="1360" y="145" />
+        <di:waypoint x="1360" y="190" />
+        <di:waypoint x="1460" y="190" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_C10_di" bpmnElement="Flow_C10">
+        <di:waypoint x="1560" y="50" />
+        <di:waypoint x="1660" y="50" />
+        <di:waypoint x="1660" y="95" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_C11_di" bpmnElement="Flow_C11">
+        <di:waypoint x="1560" y="190" />
+        <di:waypoint x="1660" y="190" />
+        <di:waypoint x="1660" y="145" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_C12_di" bpmnElement="Flow_C12">
+        <di:waypoint x="1685" y="120" />
+        <di:waypoint x="1750" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_C13_di" bpmnElement="Flow_C13">
+        <di:waypoint x="1850" y="120" />
+        <di:waypoint x="1922" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_C14_di" bpmnElement="Flow_C14">
+        <di:waypoint x="1290" y="400" />
+        <di:waypoint x="1382" y="400" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

@@ -30,12 +30,14 @@ EXPECTED_IDS = [
     "03-bucle-correccion",
     "04-paralelo-and",
     "05-inclusivo-or",
+    "06-solicitud-credito",
+    "07-gestion-incidentes",
 ]
 
 client = TestClient(app)
 
 
-def test_list_returns_the_five_real_samples_sorted():
+def test_list_returns_the_real_samples_sorted():
     response = client.get(LIST_URL)
 
     assert response.status_code == 200
