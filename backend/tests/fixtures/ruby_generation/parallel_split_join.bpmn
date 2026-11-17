@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Defs" targetNamespace="http://flowrouby.dev/fixtures">
+  <bpmn:process id="Process_Parallel" name="Parallel split and join" isExecutable="true">
+    <bpmn:startEvent id="S" name="Start" />
+    <bpmn:userTask id="T0" name="Collect data"><bpmn:extensionElements><camunda:formData><camunda:formField id="amount" label="Amount" type="long" /></camunda:formData></bpmn:extensionElements></bpmn:userTask>
+    <bpmn:parallelGateway id="Split" name="Split" />
+    <bpmn:serviceTask id="A" name="Check A" camunda:class="com.acme.CheckA" />
+    <bpmn:serviceTask id="B" name="Check B" camunda:class="com.acme.CheckB" />
+    <bpmn:serviceTask id="C" name="Check C" />
+    <bpmn:parallelGateway id="Join" name="Join" />
+    <bpmn:endEvent id="E" name="Done" />
+    <bpmn:sequenceFlow id="f0" sourceRef="S" targetRef="T0" />
+    <bpmn:sequenceFlow id="f1" sourceRef="T0" targetRef="Split" />
+    <bpmn:sequenceFlow id="f2" sourceRef="Split" targetRef="A" />
+    <bpmn:sequenceFlow id="f3" sourceRef="Split" targetRef="B" />
+    <bpmn:sequenceFlow id="f3b" sourceRef="Split" targetRef="C" />
+    <bpmn:sequenceFlow id="f4" sourceRef="A" targetRef="Join" />
+    <bpmn:sequenceFlow id="f5" sourceRef="B" targetRef="Join" />
+    <bpmn:sequenceFlow id="f5b" sourceRef="C" targetRef="Join" />
+    <bpmn:sequenceFlow id="f6" sourceRef="Join" targetRef="E" />
+  </bpmn:process>
+</bpmn:definitions>

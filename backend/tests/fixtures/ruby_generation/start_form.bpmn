@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Defs" targetNamespace="http://flowrouby.dev/fixtures">
+  <bpmn:process id="Process_StartForm" name="Start with form" isExecutable="true">
+    <bpmn:startEvent id="S" name="Start"><bpmn:extensionElements><camunda:formData><camunda:formField id="name" label="Name" type="string" /><camunda:formField id="age" label="Age" type="long" /><camunda:formField id="vip" label="VIP" type="boolean" /><camunda:formField id="score" label="Score" type="integer" /><camunda:formField id="note" label="Note" type="date" /></camunda:formData></bpmn:extensionElements></bpmn:startEvent>
+    <bpmn:userTask id="U1" name="Review" />
+    <bpmn:userTask id="U2" name="Approve" camunda:formRef="approval_form" />
+    <bpmn:userTask id="U3" name="Sign" camunda:formKey="embedded:sign" />
+    <bpmn:userTask id="U4" name="Extra data"><bpmn:extensionElements><camunda:formData><camunda:formField id="flag" label="Flag" type="bool" /><camunda:formField id="n" label="N" type="int" /></camunda:formData></bpmn:extensionElements></bpmn:userTask>
+    <bpmn:endEvent id="E" name="Done" />
+    <bpmn:sequenceFlow id="f0" sourceRef="S" targetRef="U1" />
+    <bpmn:sequenceFlow id="f1" sourceRef="U1" targetRef="U2" />
+    <bpmn:sequenceFlow id="f2" sourceRef="U2" targetRef="U3" />
+    <bpmn:sequenceFlow id="f3" sourceRef="U3" targetRef="U4" />
+    <bpmn:sequenceFlow id="f4" sourceRef="U4" targetRef="E" />
+  </bpmn:process>
+</bpmn:definitions>

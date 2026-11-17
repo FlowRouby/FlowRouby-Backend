@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Defs" targetNamespace="http://flowrouby.dev/fixtures">
+  <bpmn:process id="Process_Http" name="Http sync and async" isExecutable="true">
+    <bpmn:startEvent id="S" name="Start" />
+    <bpmn:userTask id="U" name="Capture"><bpmn:extensionElements><camunda:formData><camunda:formField id="customer" label="Customer" type="string" /></camunda:formData></bpmn:extensionElements></bpmn:userTask>
+    <bpmn:serviceTask id="Sync" name="Fetch profile"><bpmn:extensionElements><camunda:connector><camunda:connectorId>http-connector</camunda:connectorId><camunda:inputOutput><camunda:inputParameter name="method">POST</camunda:inputParameter><camunda:inputParameter name="url">https://api.example.com/profile</camunda:inputParameter><camunda:inputParameter name="headers"><camunda:map><camunda:entry key="Content-Type">application/json</camunda:entry><camunda:entry key="X-Key">abc</camunda:entry></camunda:map></camunda:inputParameter><camunda:inputParameter name="payload">{"id": "${customer}", "limit": 5, "ratio": 1.5, "vip": true, "tag": "fixed", "nested": {"x": 1}}</camunda:inputParameter><camunda:outputParameter name="profile">${response}</camunda:outputParameter></camunda:inputOutput></camunda:connector></bpmn:extensionElements></bpmn:serviceTask>
+    <bpmn:serviceTask id="Async" name="Audit call"><bpmn:extensionElements><camunda:connector><camunda:connectorId>http-connector</camunda:connectorId><camunda:inputOutput><camunda:inputParameter name="method">PUT</camunda:inputParameter><camunda:inputParameter name="url">https://api.example.com/audit</camunda:inputParameter><camunda:inputParameter name="payload">{"id": "${customer}"}</camunda:inputParameter><camunda:outputParameter name="auditResult">${response}</camunda:outputParameter></camunda:inputOutput></camunda:connector></bpmn:extensionElements></bpmn:serviceTask>
+    <bpmn:serviceTask id="Plain" name="Ping"><bpmn:extensionElements><camunda:connector><camunda:connectorId>http-connector</camunda:connectorId><camunda:inputOutput><camunda:inputParameter name="url">https://api.example.com/ping</camunda:inputParameter></camunda:inputOutput></camunda:connector></bpmn:extensionElements></bpmn:serviceTask>
+    <bpmn:serviceTask id="Out" name="Echo"><bpmn:extensionElements><camunda:connector><camunda:connectorId>http-connector</camunda:connectorId><camunda:inputOutput><camunda:inputParameter name="method">GET</camunda:inputParameter><camunda:inputParameter name="url">https://api.example.com/echo</camunda:inputParameter><camunda:inputParameter name="payload">{"previous": "${response}"}</camunda:inputParameter><camunda:outputParameter name="echoed">${response}</camunda:outputParameter></camunda:inputOutput></camunda:connector></bpmn:extensionElements></bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="Gw" name="Profile ok?" default="no" />
+    <bpmn:endEvent id="E1" name="Accepted" />
+    <bpmn:endEvent id="E2" name="Rejected" />
+    <bpmn:sequenceFlow id="f0" sourceRef="S" targetRef="U" />
+    <bpmn:sequenceFlow id="f1" sourceRef="U" targetRef="Sync" />
+    <bpmn:sequenceFlow id="f2" sourceRef="Sync" targetRef="Async" />
+    <bpmn:sequenceFlow id="f3" sourceRef="Async" targetRef="Plain" />
+    <bpmn:sequenceFlow id="f4" sourceRef="Plain" targetRef="Out" />
+    <bpmn:sequenceFlow id="f5" sourceRef="Out" targetRef="Gw" />
+    <bpmn:sequenceFlow id="yes" sourceRef="Gw" targetRef="E1"><bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${profile == "ok"}</bpmn:conditionExpression></bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="no" sourceRef="Gw" targetRef="E2" />
+  </bpmn:process>
+</bpmn:definitions>

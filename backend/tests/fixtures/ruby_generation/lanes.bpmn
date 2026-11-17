@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Defs" targetNamespace="http://flowrouby.dev/fixtures">
+  <bpmn:process id="Process_Lanes" name="Process with lanes" isExecutable="true">
+    <bpmn:laneSet id="LS"><bpmn:lane id="L1" name="Sales"><bpmn:flowNodeRef>S</bpmn:flowNodeRef><bpmn:flowNodeRef>T1</bpmn:flowNodeRef></bpmn:lane><bpmn:lane id="L2" name="Back office"><bpmn:flowNodeRef>T2</bpmn:flowNodeRef><bpmn:flowNodeRef>E</bpmn:flowNodeRef></bpmn:lane></bpmn:laneSet>
+    <bpmn:startEvent id="S" name="Start" />
+    <bpmn:userTask id="T1" name="Take order"><bpmn:extensionElements><camunda:formData><camunda:formField id="item" label="Item" type="string" /></camunda:formData></bpmn:extensionElements></bpmn:userTask>
+    <bpmn:serviceTask id="T2" name="Prepare order" />
+    <bpmn:serviceTask id="T3" name="Unassigned step" />
+    <bpmn:endEvent id="E" name="Done" />
+    <bpmn:sequenceFlow id="f0" sourceRef="S" targetRef="T1" />
+    <bpmn:sequenceFlow id="f1" sourceRef="T1" targetRef="T2" />
+    <bpmn:sequenceFlow id="f2" sourceRef="T2" targetRef="T3" />
+    <bpmn:sequenceFlow id="f3" sourceRef="T3" targetRef="E" />
+  </bpmn:process>
+</bpmn:definitions>

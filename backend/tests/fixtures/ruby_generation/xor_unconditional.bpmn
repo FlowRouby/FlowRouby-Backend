@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Defs" targetNamespace="http://flowrouby.dev/fixtures">
+  <bpmn:process id="Process_Uncond" name="Unconditional decision" isExecutable="true">
+    <bpmn:startEvent id="S" name="Start" />
+    <bpmn:exclusiveGateway id="Gw" name="Pass through" />
+    <bpmn:endEvent id="E" name="Done" />
+    <bpmn:sequenceFlow id="f0" sourceRef="S" targetRef="Gw" />
+    <bpmn:sequenceFlow id="f1" sourceRef="Gw" targetRef="E" />
+  </bpmn:process>
+</bpmn:definitions>
