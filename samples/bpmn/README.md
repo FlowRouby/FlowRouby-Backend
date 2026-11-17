@@ -22,6 +22,8 @@ Las compuertas aparecen en `bpmn_node_ids` pero no son símbolos del alfabeto. L
 - Ruta aceptada: `["start_1","task_1","task_2","end_1"]`
 - Ruta rechazada (`NOT_ACCEPTING_STATE`): `["start_1","task_1","task_2"]`
 - Ruta rechazada (`NO_TRANSITION` en el índice 1): `["start_1","task_2"]`
+- Las dos tareas de usuario llevan un formulario generado de Camunda (`camunda:formData`). `task_1` pide `nombre_solicitante` (string), `numero_documento` (string) y `monto_solicitado` (long); `task_2` pide `observaciones` (string) y `datos_correctos` (boolean).
+- `/compile` devuelve esas cinco variables en `data_contract.required_inputs` y en `flowspec.symbol_table`, y genera `app/forms/mostrar_datos_del_formulario_form.rb` y `app/forms/enviar_observaciones_form.rb`. Los formularios no cambian el autómata.
 
 ## 02-decision-xor.bpmn
 
