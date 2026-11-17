@@ -1,0 +1,343 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" id="Definitions_Process_GestionIncidentes" targetNamespace="http://flowrouby.dev/samples">
+  <bpmn:collaboration id="Collaboration_Process_GestionIncidentes">
+    <bpmn:participant id="Participant_Process_GestionIncidentes" name="Mesa de servicios" processRef="Process_GestionIncidentes" />
+  </bpmn:collaboration>
+  <bpmn:process id="Process_GestionIncidentes" name="Gestión de incidentes" isExecutable="true">
+    <bpmn:laneSet id="LaneSet_Process_GestionIncidentes">
+      <bpmn:lane id="Lane_MesaAyuda" name="Mesa de ayuda">
+        <bpmn:flowNodeRef>Start_Incidente</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RegistrarIncidente</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Critico</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_DiagnosticarN1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CerrarIncidente</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_Resuelto</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Nivel2" name="Soporte nivel 2">
+        <bpmn:flowNodeRef>Gateway_Escalar</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_NotificarGerencia</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AsignarEspecialista</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Escalado</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Atender</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AplicarSolucion</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Cliente" name="Atención al cliente">
+        <bpmn:flowNodeRef>Task_VerificarCliente</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Conforme</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RegistrarInconformidad</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EscalarProveedor</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_Escalado</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="Start_Incidente" name="Incidente reportado">
+      <bpmn:outgoing>Flow_I1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="Task_RegistrarIncidente" name="Registrar incidente">
+      <bpmn:extensionElements>
+        <camunda:formData>
+          <camunda:formField id="descripcion" label="Descripción" type="string" />
+          <camunda:formField id="severidad" label="Severidad (1 a 5)" type="long" />
+        </camunda:formData>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_I1</bpmn:incoming>
+      <bpmn:outgoing>Flow_I2</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_Critico" name="¿Es crítico?" default="Flow_I_NoCritico">
+      <bpmn:incoming>Flow_I2</bpmn:incoming>
+      <bpmn:outgoing>Flow_I_Critico</bpmn:outgoing>
+      <bpmn:outgoing>Flow_I_NoCritico</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_DiagnosticarN1" name="Diagnosticar en nivel 1">
+      <bpmn:extensionElements>
+        <camunda:formData>
+          <camunda:formField id="diagnostico" label="Diagnóstico" type="string" />
+        </camunda:formData>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_I_NoCritico</bpmn:incoming>
+      <bpmn:outgoing>Flow_I8</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="Task_CerrarIncidente" name="Cerrar incidente" camunda:class="com.flowrouby.soporte.CerrarIncidente">
+      <bpmn:incoming>Flow_I_Conforme</bpmn:incoming>
+      <bpmn:outgoing>Flow_I13</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="End_Resuelto" name="Incidente resuelto">
+      <bpmn:incoming>Flow_I13</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:parallelGateway id="Gateway_Escalar" name="">
+      <bpmn:incoming>Flow_I_Critico</bpmn:incoming>
+      <bpmn:outgoing>Flow_I3</bpmn:outgoing>
+      <bpmn:outgoing>Flow_I4</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:serviceTask id="Task_NotificarGerencia" name="Notificar a gerencia">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="url">https://api.example.com/alertas</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">{"descripcion": "${descripcion}", "severidad": "${severidad}"}</camunda:inputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_I3</bpmn:incoming>
+      <bpmn:outgoing>Flow_I5</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:userTask id="Task_AsignarEspecialista" name="Asignar especialista">
+      <bpmn:extensionElements>
+        <camunda:formData>
+          <camunda:formField id="especialista" label="Especialista asignado" type="string" />
+        </camunda:formData>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_I4</bpmn:incoming>
+      <bpmn:outgoing>Flow_I6</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:parallelGateway id="Gateway_Escalado" name="">
+      <bpmn:incoming>Flow_I5</bpmn:incoming>
+      <bpmn:incoming>Flow_I6</bpmn:incoming>
+      <bpmn:outgoing>Flow_I7</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:exclusiveGateway id="Gateway_Atender" name="">
+      <bpmn:incoming>Flow_I7</bpmn:incoming>
+      <bpmn:incoming>Flow_I8</bpmn:incoming>
+      <bpmn:incoming>Flow_I12</bpmn:incoming>
+      <bpmn:outgoing>Flow_I9</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_AplicarSolucion" name="Aplicar solución">
+      <bpmn:extensionElements>
+        <camunda:formData>
+          <camunda:formField id="solucion" label="Solución aplicada" type="string" />
+        </camunda:formData>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_I9</bpmn:incoming>
+      <bpmn:outgoing>Flow_I10</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_VerificarCliente" name="Verificar con el cliente">
+      <bpmn:extensionElements>
+        <camunda:formData>
+          <camunda:formField id="cliente_conforme" label="¿El cliente está conforme?" type="boolean" />
+          <camunda:formField id="reintentos" label="Número de reintentos" type="long" />
+        </camunda:formData>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_I10</bpmn:incoming>
+      <bpmn:outgoing>Flow_I11</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_Conforme" name="¿Conforme?" default="Flow_I_Conforme">
+      <bpmn:incoming>Flow_I11</bpmn:incoming>
+      <bpmn:outgoing>Flow_I_Proveedor</bpmn:outgoing>
+      <bpmn:outgoing>Flow_I_Inconforme</bpmn:outgoing>
+      <bpmn:outgoing>Flow_I_Conforme</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_RegistrarInconformidad" name="Registrar inconformidad">
+      <bpmn:extensionElements>
+        <camunda:formData>
+          <camunda:formField id="motivo" label="Motivo de la inconformidad" type="string" />
+        </camunda:formData>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_I_Inconforme</bpmn:incoming>
+      <bpmn:outgoing>Flow_I12</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="Task_EscalarProveedor" name="Escalar al proveedor">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="url">https://api.example.com/proveedor/casos</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">{"descripcion": "${descripcion}"}</camunda:inputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_I_Proveedor</bpmn:incoming>
+      <bpmn:outgoing>Flow_I14</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="End_Escalado" name="Escalado al proveedor">
+      <bpmn:incoming>Flow_I14</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_I1" sourceRef="Start_Incidente" targetRef="Task_RegistrarIncidente" />
+    <bpmn:sequenceFlow id="Flow_I2" sourceRef="Task_RegistrarIncidente" targetRef="Gateway_Critico" />
+    <bpmn:sequenceFlow id="Flow_I_Critico" sourceRef="Gateway_Critico" targetRef="Gateway_Escalar" name="Sí">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${severidad &gt;= 4}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_I_NoCritico" sourceRef="Gateway_Critico" targetRef="Task_DiagnosticarN1" name="No" />
+    <bpmn:sequenceFlow id="Flow_I3" sourceRef="Gateway_Escalar" targetRef="Task_NotificarGerencia" />
+    <bpmn:sequenceFlow id="Flow_I4" sourceRef="Gateway_Escalar" targetRef="Task_AsignarEspecialista" />
+    <bpmn:sequenceFlow id="Flow_I5" sourceRef="Task_NotificarGerencia" targetRef="Gateway_Escalado" />
+    <bpmn:sequenceFlow id="Flow_I6" sourceRef="Task_AsignarEspecialista" targetRef="Gateway_Escalado" />
+    <bpmn:sequenceFlow id="Flow_I7" sourceRef="Gateway_Escalado" targetRef="Gateway_Atender" />
+    <bpmn:sequenceFlow id="Flow_I8" sourceRef="Task_DiagnosticarN1" targetRef="Gateway_Atender" />
+    <bpmn:sequenceFlow id="Flow_I9" sourceRef="Gateway_Atender" targetRef="Task_AplicarSolucion" />
+    <bpmn:sequenceFlow id="Flow_I10" sourceRef="Task_AplicarSolucion" targetRef="Task_VerificarCliente" />
+    <bpmn:sequenceFlow id="Flow_I11" sourceRef="Task_VerificarCliente" targetRef="Gateway_Conforme" />
+    <bpmn:sequenceFlow id="Flow_I_Proveedor" sourceRef="Gateway_Conforme" targetRef="Task_EscalarProveedor" name="Sin solución">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${cliente_conforme == false &amp;&amp; reintentos &gt;= 3}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_I_Inconforme" sourceRef="Gateway_Conforme" targetRef="Task_RegistrarInconformidad" name="No">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${cliente_conforme == false}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_I_Conforme" sourceRef="Gateway_Conforme" targetRef="Task_CerrarIncidente" name="Sí" />
+    <bpmn:sequenceFlow id="Flow_I12" sourceRef="Task_RegistrarInconformidad" targetRef="Gateway_Atender" />
+    <bpmn:sequenceFlow id="Flow_I13" sourceRef="Task_CerrarIncidente" targetRef="End_Resuelto" />
+    <bpmn:sequenceFlow id="Flow_I14" sourceRef="Task_EscalarProveedor" targetRef="End_Escalado" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_Process_GestionIncidentes">
+    <bpmndi:BPMNPlane id="BPMNPlane_Process_GestionIncidentes" bpmnElement="Collaboration_Process_GestionIncidentes">
+      <bpmndi:BPMNShape id="Participant_Process_GestionIncidentes_di" bpmnElement="Participant_Process_GestionIncidentes" isHorizontal="true">
+        <dc:Bounds x="120" y="60" width="1580" height="670" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_MesaAyuda_di" bpmnElement="Lane_MesaAyuda" isHorizontal="true">
+        <dc:Bounds x="150" y="60" width="1550" height="200" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Nivel2_di" bpmnElement="Lane_Nivel2" isHorizontal="true">
+        <dc:Bounds x="150" y="260" width="1550" height="260" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Cliente_di" bpmnElement="Lane_Cliente" isHorizontal="true">
+        <dc:Bounds x="150" y="520" width="1550" height="210" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Start_Incidente_di" bpmnElement="Start_Incidente">
+        <dc:Bounds x="202" y="142" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_RegistrarIncidente_di" bpmnElement="Task_RegistrarIncidente">
+        <dc:Bounds x="310" y="120" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Critico_di" bpmnElement="Gateway_Critico" isMarkerVisible="true">
+        <dc:Bounds x="475" y="135" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_DiagnosticarN1_di" bpmnElement="Task_DiagnosticarN1">
+        <dc:Bounds x="600" y="120" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_CerrarIncidente_di" bpmnElement="Task_CerrarIncidente">
+        <dc:Bounds x="1250" y="120" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_Resuelto_di" bpmnElement="End_Resuelto">
+        <dc:Bounds x="1432" y="142" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Escalar_di" bpmnElement="Gateway_Escalar">
+        <dc:Bounds x="575" y="365" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_NotificarGerencia_di" bpmnElement="Task_NotificarGerencia">
+        <dc:Bounds x="700" y="290" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_AsignarEspecialista_di" bpmnElement="Task_AsignarEspecialista">
+        <dc:Bounds x="700" y="410" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Escalado_di" bpmnElement="Gateway_Escalado">
+        <dc:Bounds x="875" y="365" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Atender_di" bpmnElement="Gateway_Atender" isMarkerVisible="true">
+        <dc:Bounds x="985" y="365" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_AplicarSolucion_di" bpmnElement="Task_AplicarSolucion">
+        <dc:Bounds x="1090" y="350" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_VerificarCliente_di" bpmnElement="Task_VerificarCliente">
+        <dc:Bounds x="1090" y="570" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Conforme_di" bpmnElement="Gateway_Conforme" isMarkerVisible="true">
+        <dc:Bounds x="1275" y="585" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_RegistrarInconformidad_di" bpmnElement="Task_RegistrarInconformidad">
+        <dc:Bounds x="960" y="570" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_EscalarProveedor_di" bpmnElement="Task_EscalarProveedor">
+        <dc:Bounds x="1400" y="570" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_Escalado_di" bpmnElement="End_Escalado">
+        <dc:Bounds x="1582" y="592" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_I1_di" bpmnElement="Flow_I1">
+        <di:waypoint x="238" y="160" />
+        <di:waypoint x="310" y="160" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_I2_di" bpmnElement="Flow_I2">
+        <di:waypoint x="410" y="160" />
+        <di:waypoint x="475" y="160" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_I_Critico_di" bpmnElement="Flow_I_Critico">
+        <di:waypoint x="500" y="185" />
+        <di:waypoint x="500" y="390" />
+        <di:waypoint x="575" y="390" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_I_NoCritico_di" bpmnElement="Flow_I_NoCritico">
+        <di:waypoint x="525" y="160" />
+        <di:waypoint x="600" y="160" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_I3_di" bpmnElement="Flow_I3">
+        <di:waypoint x="600" y="365" />
+        <di:waypoint x="600" y="330" />
+        <di:waypoint x="700" y="330" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_I4_di" bpmnElement="Flow_I4">
+        <di:waypoint x="600" y="415" />
+        <di:waypoint x="600" y="450" />
+        <di:waypoint x="700" y="450" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_I5_di" bpmnElement="Flow_I5">
+        <di:waypoint x="800" y="330" />
+        <di:waypoint x="900" y="330" />
+        <di:waypoint x="900" y="365" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_I6_di" bpmnElement="Flow_I6">
+        <di:waypoint x="800" y="450" />
+        <di:waypoint x="900" y="450" />
+        <di:waypoint x="900" y="415" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_I7_di" bpmnElement="Flow_I7">
+        <di:waypoint x="925" y="390" />
+        <di:waypoint x="985" y="390" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_I8_di" bpmnElement="Flow_I8">
+        <di:waypoint x="700" y="160" />
+        <di:waypoint x="1010" y="160" />
+        <di:waypoint x="1010" y="365" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_I9_di" bpmnElement="Flow_I9">
+        <di:waypoint x="1035" y="390" />
+        <di:waypoint x="1090" y="390" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_I10_di" bpmnElement="Flow_I10">
+        <di:waypoint x="1140" y="430" />
+        <di:waypoint x="1140" y="570" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_I11_di" bpmnElement="Flow_I11">
+        <di:waypoint x="1190" y="610" />
+        <di:waypoint x="1275" y="610" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_I_Proveedor_di" bpmnElement="Flow_I_Proveedor">
+        <di:waypoint x="1325" y="610" />
+        <di:waypoint x="1400" y="610" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_I_Inconforme_di" bpmnElement="Flow_I_Inconforme">
+        <di:waypoint x="1300" y="635" />
+        <di:waypoint x="1300" y="690" />
+        <di:waypoint x="1010" y="690" />
+        <di:waypoint x="1010" y="650" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_I_Conforme_di" bpmnElement="Flow_I_Conforme">
+        <di:waypoint x="1300" y="585" />
+        <di:waypoint x="1300" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_I12_di" bpmnElement="Flow_I12">
+        <di:waypoint x="1010" y="570" />
+        <di:waypoint x="1010" y="415" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_I13_di" bpmnElement="Flow_I13">
+        <di:waypoint x="1350" y="160" />
+        <di:waypoint x="1432" y="160" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_I14_di" bpmnElement="Flow_I14">
+        <di:waypoint x="1500" y="610" />
+        <di:waypoint x="1582" y="610" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
