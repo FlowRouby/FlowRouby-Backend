@@ -24,10 +24,11 @@ Public imports from `code_generation.ruby` (`RubyCodeGenerator`, `RubyExpression
 
 ## Tasks
 - [x] T1 Golden test: fixtures under `backend/tests/fixtures/ruby_generation/` covering every node kind the generator handles, plus a snapshot of the generated files produced by the untouched generator — route: delegated (writer trigger: 2+ non-trivial files)
-- [ ] T2 Split `generator.py` into the target layout; remove unnecessary code only when the golden test and the full suite stay green — route: delegated
+- [x] T2 Split `generator.py` into the target layout; remove unnecessary code only when the golden test and the full suite stay green — route: delegated
 
 ## Acceptance criteria
 Golden test green before and after; full suite = baseline failures only; one Conventional Commit per task, no AI attribution, no push.
 
 ## Progress / evidence
-- T1: 12 BPMN fixtures + golden JSON snapshots (`tests/test_ruby_generation_golden.py`, regenerate with `UPDATE_RUBY_GOLDEN=1`); golden test 14 passed on the untouched generator; full suite 163 passed, 3 failed (the 3 known environmental failures). Commit: b736805
+- T1: 12 BPMN fixtures + golden JSON snapshots (`tests/test_ruby_generation_golden.py`, regenerate with `UPDATE_RUBY_GOLDEN=1`); golden test 14 passed on the untouched generator; full suite 163 passed, 3 failed (the 3 known environmental failures). Commit: 23b1452
+- T2: generator.py split into naming, expression_transpiler, workflow_builder, artifacts, scaffold, generator; golden test 14 passed (snapshots untouched); full suite 163 passed, 3 failed (the 3 known environmental failures). Commit: the `refactor(codegen)` commit that contains this line
