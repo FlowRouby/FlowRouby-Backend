@@ -421,6 +421,7 @@ def test_compile_includes_full_rails_scaffold_in_json() -> None:
         "config/puma.rb",
         "config/routes.rb",
         "config/sidekiq.yml",
+        "config/initializers/autoload_namespaces.rb",
         "config/initializers/sidekiq.rb",
         "config/environments/development.rb",
         "config/environments/production.rb",

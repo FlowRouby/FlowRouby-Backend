@@ -233,9 +233,20 @@ module {app_module_name}
   class Application < Rails::Application
     config.load_defaults 7.1
     config.api_only = true
-    config.autoload_paths << Rails.root.join("app")
-    config.eager_load_paths << Rails.root.join("app")
   end
+end
+"""
+
+AUTOLOAD_NAMESPACES_INITIALIZER_TEMPLATE = """# frozen_string_literal: true
+
+# The classes in these folders live in a namespace named after the folder
+# (app/workflows -> Workflows::...). Without this, Rails expects top-level constants.
+%w[Workflows Forms Jobs Services].each do |namespace_name|
+  directory = Rails.root.join("app", namespace_name.downcase)
+  next unless directory.directory?
+
+  namespace = Object.const_set(namespace_name, Module.new)
+  Rails.autoloaders.main.push_dir(directory, namespace: namespace)
 end
 """
 

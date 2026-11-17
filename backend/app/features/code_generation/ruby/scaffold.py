@@ -13,6 +13,7 @@ from .naming import to_pascal_case
 from .templates.rails_templates import (
     APPLICATION_CONTROLLER_TEMPLATE,
     APPLICATION_RB_TEMPLATE,
+    AUTOLOAD_NAMESPACES_INITIALIZER_TEMPLATE,
     BIN_RAILS_TEMPLATE,
     BIN_RAKE_TEMPLATE,
     BOOT_RB_TEMPLATE,
@@ -59,6 +60,7 @@ def build_rails_scaffold(ast: ProcessAST, proc_snake: str, workflow_class_name: 
         "config/puma.rb": PUMA_RB_TEMPLATE,
         "config/routes.rb": ROUTES_RB_TEMPLATE.format(proc_snake=proc_snake),
         "config/sidekiq.yml": SIDEKIQ_YML_TEMPLATE,
+        "config/initializers/autoload_namespaces.rb": AUTOLOAD_NAMESPACES_INITIALIZER_TEMPLATE,
         "config/initializers/sidekiq.rb": SIDEKIQ_INITIALIZER_TEMPLATE,
         "config/environments/development.rb": ENV_DEVELOPMENT_TEMPLATE,
         "config/environments/production.rb": ENV_PRODUCTION_TEMPLATE,
