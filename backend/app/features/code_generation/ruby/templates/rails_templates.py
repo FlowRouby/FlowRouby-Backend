@@ -371,7 +371,7 @@ class WorkflowsController < ApplicationController
   end
 
   def execute
-    payload = params.fetch(:payload, params.except(:controller, :action)).to_unsafe_h
+    payload = params.fetch(:payload, params.except(:controller, :action)).to_unsafe_h.to_hash
     result = Workflows::{workflow_class_name}.call(payload)
     render json: result, status: :ok
   end
