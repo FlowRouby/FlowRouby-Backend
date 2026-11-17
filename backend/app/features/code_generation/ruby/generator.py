@@ -1,7 +1,8 @@
 """Code generation stage: turns a validated FlowSpec AST into a Ruby on Rails + Sidekiq project.
 
 ``RubyCodeGenerator.generate`` runs the stages in order: the workflow class (``workflow_builder``),
-the RSpec file (``artifacts``) and the fixed project files (``scaffold``). Names come from ``naming``
+the RSpec file (``artifacts``), the fixed project files (``scaffold``) and the API documentation
+(``api_docs``). Names come from ``naming``
 and expressions are translated by ``expression_transpiler``.
 """
 
@@ -11,6 +12,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 from ...flowspec.ast.nodes import ProcessAST
+from .api_docs import build_api_docs
 from .artifacts import build_rspec
 from .expression_transpiler import RubyExpressionTranspiler
 from .naming import to_pascal_case, to_snake_case
@@ -96,6 +98,9 @@ class RubyCodeGenerator:
             async_http_jobs=builder.async_http_jobs,
         )
 
+        scaffold_files = build_rails_scaffold(ast, proc_snake, workflow_class_name)
+        scaffold_files.update(build_api_docs(ast, proc_snake, sample_payload or {}))
+
         return RubyGenerationOutput(
             workflow_file_path=f"app/workflows/{proc_snake}_workflow.rb",
             workflow_code=workflow_code,
@@ -105,5 +110,5 @@ class RubyCodeGenerator:
             decision_stubs=builder.decision_stubs,
             rspec_file_path=f"spec/workflows/{proc_snake}_workflow_spec.rb",
             rspec_code=rspec_code,
-            scaffold_files=build_rails_scaffold(ast, proc_snake, workflow_class_name),
+            scaffold_files=scaffold_files,
         )

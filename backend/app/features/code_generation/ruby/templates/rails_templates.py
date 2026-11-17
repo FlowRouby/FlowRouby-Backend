@@ -432,6 +432,11 @@ bundle exec rails server
 
 - `GET /health`
 - `POST /workflows/{proc_snake}/execute`
+
+## API docs
+
+With the server running, open `http://localhost:3000/docs/` for Swagger UI (it loads from a CDN, so it
+needs internet access). The OpenAPI description is in `public/openapi.json`.
 """
 
 

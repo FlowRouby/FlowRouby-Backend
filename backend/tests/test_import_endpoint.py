@@ -430,6 +430,8 @@ def test_compile_includes_full_rails_scaffold_in_json() -> None:
         "app/controllers/workflows_controller.rb",
         "app/workflows/p_workflow.rb",
         "log/.keep",
+        "public/openapi.json",
+        "public/docs/index.html",
         "tmp/.keep",
         "spec/spec_helper.rb",
         "spec/rails_helper.rb",
