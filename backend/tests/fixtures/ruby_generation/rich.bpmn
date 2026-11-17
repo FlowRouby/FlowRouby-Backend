@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Defs" targetNamespace="http://flowrouby.dev/samples">
+  <bpmn:process id="Process_Credito" name="Solicitud de crédito" isExecutable="true">
+    <bpmn:startEvent id="Start_1" name="Solicitud recibida"><bpmn:outgoing>F1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:userTask id="Task_Datos" name="Registrar solicitud">
+      <bpmn:extensionElements><camunda:formData>
+        <camunda:formField id="monto" label="Monto" type="long" />
+        <camunda:formField id="cliente" label="Cliente" type="string" />
+      </camunda:formData></bpmn:extensionElements>
+      <bpmn:incoming>F1</bpmn:incoming><bpmn:outgoing>F2</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="Task_Score" name="Consultar score">
+      <bpmn:extensionElements><camunda:connector>
+        <camunda:connectorId>http-connector</camunda:connectorId>
+        <camunda:inputOutput>
+          <camunda:inputParameter name="method">POST</camunda:inputParameter>
+          <camunda:inputParameter name="url">https://api.example.com/score</camunda:inputParameter>
+          <camunda:inputParameter name="headers"><camunda:map><camunda:entry key="Content-Type">application/json</camunda:entry></camunda:map></camunda:inputParameter>
+          <camunda:inputParameter name="payload">{"cliente": "${cliente}"}</camunda:inputParameter>
+          <camunda:outputParameter name="score">${response}</camunda:outputParameter>
+        </camunda:inputOutput>
+      </camunda:connector></bpmn:extensionElements>
+      <bpmn:incoming>F2</bpmn:incoming><bpmn:outgoing>F3</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:businessRuleTask id="Task_Regla" name="Evaluar riesgo" camunda:decisionRef="riesgo_credito" camunda:resultVariable="riesgo">
+      <bpmn:incoming>F3</bpmn:incoming><bpmn:outgoing>F4</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+    <bpmn:exclusiveGateway id="Gw_1" name="¿Riesgo bajo?" default="F_No"><bpmn:incoming>F4</bpmn:incoming><bpmn:outgoing>F_Si</bpmn:outgoing><bpmn:outgoing>F_No</bpmn:outgoing></bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="Task_Aprobar" name="Aprobar crédito" camunda:class="com.acme.AprobarCredito"><bpmn:incoming>F_Si</bpmn:incoming><bpmn:outgoing>F5</bpmn:outgoing></bpmn:serviceTask>
+    <bpmn:serviceTask id="Task_Notificar" name="Notificar rechazo">
+      <bpmn:extensionElements><camunda:connector>
+        <camunda:connectorId>http-connector</camunda:connectorId>
+        <camunda:inputOutput>
+          <camunda:inputParameter name="method">POST</camunda:inputParameter>
+          <camunda:inputParameter name="url">https://api.example.com/notify</camunda:inputParameter>
+          <camunda:inputParameter name="payload">{"cliente": "${cliente}"}</camunda:inputParameter>
+        </camunda:inputOutput>
+      </camunda:connector></bpmn:extensionElements>
+      <bpmn:incoming>F_No</bpmn:incoming><bpmn:outgoing>F6</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="End_Ok" name="Aprobado"><bpmn:incoming>F5</bpmn:incoming></bpmn:endEvent>
+    <bpmn:endEvent id="End_No" name="Rechazado"><bpmn:incoming>F6</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="F1" sourceRef="Start_1" targetRef="Task_Datos" />
+    <bpmn:sequenceFlow id="F2" sourceRef="Task_Datos" targetRef="Task_Score" />
+    <bpmn:sequenceFlow id="F3" sourceRef="Task_Score" targetRef="Task_Regla" />
+    <bpmn:sequenceFlow id="F4" sourceRef="Task_Regla" targetRef="Gw_1" />
+    <bpmn:sequenceFlow id="F_Si" sourceRef="Gw_1" targetRef="Task_Aprobar"><bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${riesgo &lt; 50 &amp;&amp; monto &lt;= 1000}</bpmn:conditionExpression></bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="F_No" sourceRef="Gw_1" targetRef="Task_Notificar" />
+    <bpmn:sequenceFlow id="F5" sourceRef="Task_Aprobar" targetRef="End_Ok" />
+    <bpmn:sequenceFlow id="F6" sourceRef="Task_Notificar" targetRef="End_No" />
+  </bpmn:process>
+</bpmn:definitions>

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Defs" targetNamespace="http://flowrouby.dev/fixtures">
+  <bpmn:process id="Process_Mixed" name="Script manual and call" isExecutable="true">
+    <bpmn:startEvent id="S" name="Start" />
+    <bpmn:userTask id="U" name="Capture"><bpmn:extensionElements><camunda:formData><camunda:formField id="amount" label="Amount" type="long" /><camunda:formField id="ok" label="Ok" type="boolean" /></camunda:formData></bpmn:extensionElements></bpmn:userTask>
+    <bpmn:scriptTask id="Sc" name="Compute"><bpmn:script>x = 1</bpmn:script></bpmn:scriptTask>
+    <bpmn:manualTask id="Mn" name="Sign paper" />
+    <bpmn:callActivity id="Ca" name="Run subprocess" calledElement="Sub_Process"><bpmn:extensionElements><camunda:in source="amount" target="loan" /><camunda:in sourceExpression="${amount * 2}" target="double" /><camunda:in variables="all" /><camunda:out source="result" target="subresult" /><camunda:out sourceExpression="${amount * 3}" target="triple" /><camunda:out variables="all" /></bpmn:extensionElements></bpmn:callActivity>
+    <bpmn:serviceTask id="Io" name="Prepare"><bpmn:extensionElements><camunda:inputOutput><camunda:inputParameter name="in1">${amount}</camunda:inputParameter><camunda:inputParameter name="in2">${ok == true}</camunda:inputParameter><camunda:outputParameter name="total">${amount + 10}</camunda:outputParameter><camunda:outputParameter name="flag">${!ok}</camunda:outputParameter><camunda:outputParameter name="label">"fixed"</camunda:outputParameter><camunda:outputParameter name="yes">true</camunda:outputParameter><camunda:outputParameter name="limit">100</camunda:outputParameter><camunda:outputParameter name="both">${amount > 1 &amp;&amp; ok}</camunda:outputParameter><camunda:outputParameter name="miss">${ok != false || amount == 0}</camunda:outputParameter></camunda:inputOutput></bpmn:extensionElements></bpmn:serviceTask>
+    <bpmn:endEvent id="E" name="Done" />
+    <bpmn:sequenceFlow id="f0" sourceRef="S" targetRef="U" />
+    <bpmn:sequenceFlow id="f1" sourceRef="U" targetRef="Sc" />
+    <bpmn:sequenceFlow id="f2" sourceRef="Sc" targetRef="Mn" />
+    <bpmn:sequenceFlow id="f3" sourceRef="Mn" targetRef="Ca" />
+    <bpmn:sequenceFlow id="f4" sourceRef="Ca" targetRef="Io" />
+    <bpmn:sequenceFlow id="f5" sourceRef="Io" targetRef="E" />
+  </bpmn:process>
+</bpmn:definitions>

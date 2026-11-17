@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Defs" targetNamespace="http://flowrouby.dev/fixtures">
+  <bpmn:process id="Process_Loop" name="Correction loop" isExecutable="true">
+    <bpmn:startEvent id="S" name="Start" />
+    <bpmn:userTask id="Fill" name="Fill report"><bpmn:extensionElements><camunda:formData><camunda:formField id="pages" label="Pages" type="long" /><camunda:formField id="title" label="Title" type="string" /></camunda:formData></bpmn:extensionElements></bpmn:userTask>
+    <bpmn:serviceTask id="Review" name="Review report" />
+    <bpmn:exclusiveGateway id="Gw" name="Report ok?" default="back" />
+    <bpmn:endEvent id="E" name="Published" />
+    <bpmn:sequenceFlow id="f0" sourceRef="S" targetRef="Fill" />
+    <bpmn:sequenceFlow id="f1" sourceRef="Fill" targetRef="Review" />
+    <bpmn:sequenceFlow id="f2" sourceRef="Review" targetRef="Gw" />
+    <bpmn:sequenceFlow id="ok" sourceRef="Gw" targetRef="E"><bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${pages >= 10 &amp;&amp; !(title == "draft")}</bpmn:conditionExpression></bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="back" sourceRef="Gw" targetRef="Fill" />
+  </bpmn:process>
+</bpmn:definitions>
